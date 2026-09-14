@@ -68,16 +68,23 @@ def verify_dashboard_access(key: str = Security(API_KEY_HEADER), request: Reques
 # --- MEDIA SERVING ---
 @app.get("/api/media/{file_path:path}")
 async def serve_media(file_path: str):
-    raw_target = (settings.raw_media_dir / Path(file_path).name).resolve()
-    if raw_target.exists():
+    fname = Path(file_path).name
+    # 1. Direct path in raw & processed
+    raw_target = (settings.raw_media_dir / fname).resolve()
+    if raw_target.exists() and raw_target.is_file():
         return FileResponse(str(raw_target))
-    proc_target = (settings.processed_media_dir / Path(file_path).name).resolve()
-    if proc_target.exists():
+    proc_target = (settings.processed_media_dir / fname).resolve()
+    if proc_target.exists() and proc_target.is_file():
         return FileResponse(str(proc_target))
+    # 2. Direct relative path under storage_dir
     base_storage = settings.storage_dir.resolve()
     target = (base_storage / file_path).resolve()
-    if target.exists() and str(target).startswith(str(base_storage)):
+    if target.exists() and target.is_file() and str(target).startswith(str(base_storage)):
         return FileResponse(str(target))
+    # 3. Recursive search across all storage subdirectories (e.g. storage/processed/cerita_xxx/)
+    for found in settings.storage_dir.rglob(fname):
+        if found.is_file():
+            return FileResponse(str(found.resolve()))
     raise HTTPException(status_code=404, detail="File media tidak ditemukan")
 
 # --- APP MODE API (DRY RUN vs PRODUCTION) ---
@@ -1086,7 +1093,7 @@ async def serve_dashboard(_: bool = Depends(verify_dashboard_access)):
 
             <div style="display:flex; gap:16px; margin-bottom:16px; align-items: flex-start;">
                 <div id="prev-media-box" style="width: 140px; height: 140px; border-radius: 12px; background: rgba(255,255,255,0.04); border: 1px solid var(--border); overflow: hidden; display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
-                    <img id="prev-img" src="" style="width: 100%; height: 100%; object-fit: cover; display: none;">
+                    <img id="prev-img" src="" style="width: 100%; height: 100%; object-fit: cover; display: none;" onerror="this.style.display='none'; document.getElementById('prev-fallback-icon').style.display='block';">
                     <div id="prev-fallback-icon" style="font-size: 2.2rem;">📘</div>
                 </div>
                 <div style="flex:1;">
