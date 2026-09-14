@@ -241,23 +241,29 @@ class TelegramC2Bot:
     def handle_pause_command(self, user_id: int) -> str:
         if not self.authenticate_user(user_id):
             return "⛔ *AKSES DITOLAK*: ID Telegram Anda tidak terdaftar sebagai Admin."
+        from core.runtime.control_bus import control_bus
+        control_bus.send_command("PAUSE", source="telegram")
         self.is_paused = True
-        return "⏸️ *SISTEM DIJEDA*: Pengambilan job baru dari antrean telah ditangguhkan sementara."
+        return "⏸️ *SISTEM DIJEDA*: Pengambilan job baru dari antrean telah ditangguhkan sementara (Tersinkronisasi dengan Dashboard)."
 
     def handle_resume_command(self, user_id: int) -> str:
         if not self.authenticate_user(user_id):
             return "⛔ *AKSES DITOLAK*: ID Telegram Anda tidak terdaftar sebagai Admin."
         if self.is_emergency_stopped:
             return "⚠️ Sistem dalam kondisi *Emergency Stop*. Hapus kunci darurat terlebih dahulu."
+        from core.runtime.control_bus import control_bus
+        control_bus.send_command("RESUME", source="telegram")
         self.is_paused = False
-        return "▶️ *SISTEM BERJALAN KEMBALI*: Worker aktif memproses antrean konten."
+        return "▶️ *SISTEM BERJALAN KEMBALI*: Worker aktif memproses antrean konten (Tersinkronisasi dengan Dashboard)."
 
     def handle_emergency_stop_command(self, user_id: int) -> str:
         if not self.authenticate_user(user_id):
             return "⛔ *AKSES DITOLAK*: ID Telegram Anda tidak terdaftar sebagai Admin."
+        from core.runtime.control_bus import control_bus
+        control_bus.send_command("EMERGENCY_STOP", source="telegram")
         self.is_emergency_stopped = True
         self.is_paused = True
-        return "🚨 *EMERGENCY STOP DIAKTIFKAN*: Seluruh worker dan proses kreasi dihentikan seketika!"
+        return "🚨 *EMERGENCY STOP DIAKTIFKAN*: Seluruh worker dan proses kreasi dihentikan seketika! (Tersinkronisasi dengan Dashboard)"
 
     def handle_report_command(self, user_id: int, summary_data: Dict[str, Any]) -> str:
         if not self.authenticate_user(user_id):

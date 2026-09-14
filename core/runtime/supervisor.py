@@ -20,6 +20,8 @@ from core.runtime.health_monitor import CredentialHealthMonitor
 from core.runtime.persistent_scheduler import persistent_scheduler
 from monitoring.telegram_bot import telegram_c2
 
+from core.runtime.control_bus import control_bus
+
 logger = logging.getLogger("pita.runtime.supervisor")
 
 class DaemonSupervisor:
@@ -33,6 +35,7 @@ class DaemonSupervisor:
         """Signal handler for graceful Windows shutdown (SIGINT, SIGTERM, SIGBREAK)."""
         logger.info(f"Received termination signal ({signum}). Initiating graceful shutdown...")
         self.is_running = False
+        control_bus.set_worker_stopped()
         persistent_scheduler.stop()
         telegram_c2.stop_polling()
         instance_lock.release()
@@ -106,6 +109,7 @@ class DaemonSupervisor:
 
         # 6. Mark running and spawn concurrent background tasks
         self.is_running = True
+        control_bus.set_worker_running(os.getpid())
 
         # Send Telegram startup notification
         try:
@@ -113,6 +117,7 @@ class DaemonSupervisor:
                 "🚀 *PITA MEDIA AUTONOMOUS DAEMON STARTED*\n"
                 "═══════════════════════════\n"
                 "• Mode: 24/7 Autonomous Windows Background\n"
+                "• Web Dashboard: http://pitamedia.localhost\n"
                 "• Scheduler: Persistent SQLite WAL Queue\n"
                 "• Health Monitor: Active (Hourly Check)\n"
                 "• Telegram C2: Online & Listening\n"
@@ -140,6 +145,7 @@ class DaemonSupervisor:
         except Exception as e:
             logger.critical(f"Unhandled exception in supervisor task pool: {e}", exc_info=True)
         finally:
+            control_bus.set_worker_stopped()
             instance_lock.release()
             logger.info("Daemon supervisor terminated.")
 

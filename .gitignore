@@ -38,12 +38,18 @@ ENV/
 *.sqlite
 *.sqlite3
 storage/*.db*
+storage/*.lock
+storage/control_state.json
 storage/raw/*
 storage/processed/*
 storage/backups/*
+storage/content/*
+storage/cache/*
+storage/logs/*
 !storage/raw/.gitkeep
 !storage/processed/.gitkeep
 !storage/backups/.gitkeep
+!storage/logo.png
 
 # Logs & Cache
 *.log

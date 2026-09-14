@@ -63,9 +63,9 @@ class Settings(BaseSettings):
     QC_CATEGORY_PASS_THRESHOLD: float = Field(default=7.0)
     MAX_AUTO_REPAIR_ATTEMPTS: int = Field(default=3)
 
-    # 7. Dashboard
+    # 7. Dashboard (Default to Port 80 for http://pitamedia.localhost)
     DASHBOARD_HOST: str = Field(default="127.0.0.1")
-    DASHBOARD_PORT: int = Field(default=8080)
+    DASHBOARD_PORT: int = Field(default=80)
     DASHBOARD_SECRET_KEY: str = Field(default="change_this_to_a_random_secure_string")
 
     @property

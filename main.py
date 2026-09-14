@@ -110,13 +110,29 @@ async def run_bot_only():
 
 
 def run_dashboard_server():
-    print(f"[*] Menjalankan Status Dashboard di http://{settings.DASHBOARD_HOST}:{settings.DASHBOARD_PORT}")
-    uvicorn.run(
-        "monitoring.dashboard.app:app",
-        host=settings.DASHBOARD_HOST,
-        port=settings.DASHBOARD_PORT,
-        reload=False,
-    )
+    host = settings.DASHBOARD_HOST or "0.0.0.0"
+    port = settings.DASHBOARD_PORT or 80
+    print(f"[*] Menjalankan Web Command Center di http://pitamedia.localhost (Port {port})")
+    try:
+        uvicorn.run(
+            "monitoring.dashboard.app:app",
+            host=host,
+            port=port,
+            reload=False,
+            log_level="info"
+        )
+    except Exception as e:
+        if port == 80:
+            print(f"[!] Port 80 tidak dapat dibuka ({e}). Beralih ke fallback Port 8080...")
+            uvicorn.run(
+                "monitoring.dashboard.app:app",
+                host=host,
+                port=8080,
+                reload=False,
+                log_level="info"
+            )
+        else:
+            raise e
 
 
 def main():
