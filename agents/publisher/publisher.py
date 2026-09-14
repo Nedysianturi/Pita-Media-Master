@@ -131,6 +131,7 @@ class PublisherAgent:
                 # Record receipt
                 receipt = self.receipt_verifier.record_receipt(
                     content_id=content_id,
+                    job_id=content_payload.get("job_id"),
                     platform=target,
                     post_id=res.get("post_id", ""),
                     permalink=res.get("permalink", ""),

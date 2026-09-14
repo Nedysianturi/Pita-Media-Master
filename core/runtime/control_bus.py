@@ -154,18 +154,18 @@ class ControlBus:
             import sqlite3
             db_file = Path("storage/pita_media.db")
             if db_file.exists():
-                conn = sqlite3.connect(str(db_file))
+                conn = sqlite3.connect(str(db_file), timeout=2.0)
                 cursor = conn.cursor()
-                # Ensure audit_logs table exists
                 now = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
                 cursor.execute(
-                    "INSERT INTO audit_logs (id, level, component, message, created_at) VALUES (?, ?, ?, ?, ?)",
+                    "INSERT INTO audit_logs (id, timestamp, created_at, level, component, message) VALUES (?, ?, ?, ?, ?, ?)",
                     (
                         f"audit_{int(time.time()*1000)}",
+                        now,
+                        now,
                         "INFO" if command != "EMERGENCY_STOP" else "CRITICAL",
                         f"ControlBus.{source.capitalize()}",
-                        f"Command '{command}' triggered from {source}.",
-                        now
+                        f"Command '{command}' triggered from {source}."
                     )
                 )
                 conn.commit()

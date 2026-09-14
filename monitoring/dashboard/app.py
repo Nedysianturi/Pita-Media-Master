@@ -111,7 +111,7 @@ async def execute_control_action(action: str, background_tasks: BackgroundTasks,
     elif action in ["RESUME", "START"]:
         telegram_c2.is_paused = False
 
-    control_bus.emit(action, initiator="DASHBOARD")
+    control_bus.send_command(action, source="DASHBOARD")
     return {"success": True, "action": action, "timestamp": datetime.now(timezone.utc).isoformat()}
 
 # --- CORE STATS & METRICS ---
@@ -352,16 +352,16 @@ async def list_qc(_: bool = Depends(verify_dashboard_access)):
     async with async_session_factory() as db:
         res = await db.execute(
             select(QCRecord, Content.title, Content.pilar)
-            .join(Content, QCRecord.content_id == Content.id)
+            .outerjoin(Content, QCRecord.content_id == Content.id)
             .order_by(desc(QCRecord.created_at))
             .limit(20)
         )
         return {"qc_records": [
             {
                 "id": q.id,
-                "content_title": title,
-                "pilar": pilar,
-                "iteration": q.iteration_count,
+                "content_title": title or "N/A",
+                "pilar": pilar or "N/A",
+                "iteration": getattr(q, 'iteration_number', 1),
                 "total_score": q.total_score,
                 "verdict": q.verdict,
                 "feedback_text": q.feedback_text

@@ -51,7 +51,8 @@ class PostPublishVerifier:
         app_mode: str,
         verified: bool = False,
         metrics: Optional[Dict[str, Any]] = None,
-        error_message: Optional[str] = None
+        error_message: Optional[str] = None,
+        job_id: Optional[str] = None,
     ) -> PublishingReceipt:
         """
         Save an immutable publishing receipt to database.
@@ -59,6 +60,7 @@ class PostPublishVerifier:
         with get_db() as db:
             receipt = PublishingReceipt(
                 content_id=content_id,
+                job_id=job_id or f"job_{content_id[:8]}",
                 platform=platform,
                 post_id=post_id,
                 permalink=permalink,

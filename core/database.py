@@ -32,7 +32,6 @@ def set_sqlite_pragma(dbapi_connection, connection_record):
         cursor.execute("PRAGMA synchronous=NORMAL")
         cursor.execute("PRAGMA busy_timeout=30000")
         cursor.close()
-        dbapi_connection.isolation_level = None
 
 # Ensure tables exist
 Base.metadata.create_all(bind=sync_engine)
