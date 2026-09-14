@@ -20,8 +20,8 @@ class Settings(BaseSettings):
 
     # 1. Google Gemini Ecosystem (Diambil murni dari .env)
     GEMINI_API_KEY: str = Field(default="", description="Google Gemini API Key")
-    GEMINI_TEXT_MODEL: str = Field(default="gemini-2.5-flash", description="Model teks dari .env")
-    GEMINI_PRO_MODEL: str = Field(default="gemini-2.5-pro", description="Model pro/structured dari .env")
+    GEMINI_TEXT_MODEL: str = Field(default="gemini-3.6-flash", description="Model teks dari .env")
+    GEMINI_PRO_MODEL: str = Field(default="gemini-3.6-flash", description="Model pro/structured dari .env")
     GEMINI_IMAGE_MODEL: str = Field(default="imagen-3.0-generate-002", description="Model gambar dari .env")
     GEMINI_VIDEO_MODEL: str = Field(default="veo-2.0-generate-001", description="Model video dari .env")
 

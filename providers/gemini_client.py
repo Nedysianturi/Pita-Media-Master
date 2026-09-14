@@ -118,7 +118,7 @@ class GeminiClient:
                     if "429" in err_msg or "RESOURCE_EXHAUSTED" in err_msg or "quota" in err_msg.lower():
                         # Jika kuota harian model tersebut habis (PerDay / limit: 20), beralih ke model alternatif
                         if "perday" in err_msg.lower() or "limit: 20" in err_msg:
-                            pool = ["gemini-3.6-flash", "gemini-3.7-flash", "gemini-3.8-flash", "gemini-flash-lite-latest", "gemini-3.5-flash"]
+                            pool = ["gemini-3.6-flash", "gemini-flash-latest", "gemini-flash-lite-latest", "gemini-pro-latest"]
                             next_models = [m for m in pool if m != target_model]
                             if next_models and attempt < max_retries:
                                 next_model = next_models[(attempt - 1) % len(next_models)]
@@ -136,20 +136,20 @@ class GeminiClient:
                             logger.error(f"Batas retry 429 ({max_retries}) tercapai untuk model '{target_model}'.")
                             raise RuntimeError(f"Gemini API 429 (Rate Limit Terlampaui setelah {max_retries} retry): {e}")
 
-                    # Jika 503 UNAVAILABLE / High Demand / 500 Internal Error: Tunggu sebentar lalu retry
-                    if "503" in err_msg or "UNAVAILABLE" in err_msg or "high demand" in err_msg.lower() or "500" in err_msg:
+                    # Jika 503 UNAVAILABLE / High Demand / 500 Internal Error / 404: Tunggu sebentar lalu retry dengan model stabil
+                    if "503" in err_msg or "UNAVAILABLE" in err_msg or "high demand" in err_msg.lower() or "500" in err_msg or "404" in err_msg or "NOT_FOUND" in err_msg:
                         if attempt < max_retries:
-                            wait_time = 3.0 * attempt + 1.0
-                            if attempt >= 2 and target_model != "gemini-3.6-flash":
-                                logger.warning(f"Endpoint '{target_model}' sedang sibuk. Beralih ke model cadangan 'gemini-3.6-flash'...")
-                                target_model = "gemini-3.6-flash"
-                            logger.warning(f"Gemini API 503/500 (High Demand): Menunggu {wait_time:.1f} detik sebelum mencoba kembali (Percobaan {attempt}/{max_retries})...")
+                            wait_time = 2.0 * attempt + 1.0
+                            pool = ["gemini-3.6-flash", "gemini-flash-latest", "gemini-flash-lite-latest", "gemini-pro-latest"]
+                            next_model = pool[(attempt - 1) % len(pool)]
+                            logger.warning(f"Model '{target_model}' mengalami kendala ({err_msg[:60]}...). Beralih ke model '{next_model}' (Percobaan {attempt}/{max_retries})...")
+                            target_model = next_model
                             await asyncio.sleep(wait_time)
                             attempt += 1
                             continue
                         else:
-                            logger.error(f"Batas retry 503/500 ({max_retries}) tercapai untuk model '{target_model}'.")
-                            raise RuntimeError(f"Gemini API 503 (Server Sibuk setelah {max_retries} retry): {e}")
+                            logger.error(f"Batas retry ({max_retries}) tercapai untuk model '{target_model}'.")
+                            raise RuntimeError(f"Gemini API Error setelah {max_retries} retry: {e}")
 
                     # Jika error model tidak ditemukan (404)
                     if "404" in err_msg or "NOT_FOUND" in err_msg:

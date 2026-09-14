@@ -1,19 +1,32 @@
 """
 Titik Masuk Utama (Main CLI Entrypoint) Sistem Pita Media.
 Penggunaan:
+  python main.py self-check          : Uji integritas seluruh 10 subsistem (DB, Meta, Gemini, Telegram, dll)
+  python main.py dry-run             : Uji coba end-to-end tanpa posting nyata ke media sosial
+  python main.py daemon              : Jalankan Autonomous 24/7 background runtime
   python main.py init-db             : Inisialisasi skema tabel database
   python main.py run                 : Menjalankan orchestrator, scheduler, worker loop & Telegram C2 polling
   python main.py bot                 : Menjalankan listener Telegram Bot C2 saja
   python main.py single --pilar ...  : Menjalankan 1 siklus kreasi pilar langsung (end-to-end)
   python main.py dashboard           : Menjalankan protected web status dashboard
   python main.py backup              : Mengambil backup snapshot database
+  python main.py restore --file ...  : Pulihkan database dari snapshot
 """
 
 import sys
+import io
 import asyncio
 import argparse
 import uvicorn
 from pathlib import Path
+
+# Ensure UTF-8 output on Windows consoles
+if hasattr(sys.stdout, 'reconfigure'):
+    try:
+        sys.stdout.reconfigure(encoding='utf-8', errors='replace')
+        sys.stderr.reconfigure(encoding='utf-8', errors='replace')
+    except Exception:
+        pass
 
 from config.settings import settings
 from database.connection import init_db, backup_database
@@ -21,6 +34,10 @@ from core.scheduler import content_orchestrator
 from core.resilience.crash_recovery import crash_recovery_engine
 from database.connection import async_session_factory
 from monitoring.telegram_bot import telegram_c2
+from core.runtime.self_check import run_startup_self_check, format_self_check_cli
+from core.runtime.supervisor import run_daemon
+from core.runtime.dry_run import run_dry_run_simulation
+from core.runtime.maintenance import StorageMaintenance
 
 
 async def run_init_db():
@@ -106,8 +123,25 @@ def main():
     parser = argparse.ArgumentParser(description="Pita Media - Autonomous Multi-Agent Content Engine")
     subparsers = parser.add_subparsers(dest="command", help="Perintah yang tersedia")
 
+    # Command: self-check
+    subparsers.add_parser("self-check", help="Periksa kesehatan 10 subsistem & koneksi API")
+
+    # Command: dry-run
+    dry_parser = subparsers.add_parser("dry-run", help="Uji coba siklus konten lengkap tanpa posting ke medsos")
+    dry_parser.add_argument(
+        "--pilar",
+        dest="pilar",
+        type=str,
+        default="pita_cerita",
+        choices=["pita_transformasi", "pita_mini", "pita_cerita", "pita_kreasi"],
+        help="Pilar konten untuk dry-run"
+    )
+
+    # Command: daemon
+    subparsers.add_parser("daemon", help="Jalankan Autonomous 24/7 background runtime")
+
     # Command: init-db
-    subparsers.add_parser("init-db", help="Inisialisasi database")
+    subparsers.add_parser("init-db", help="Inisialisasi skema database")
 
     # Command: run
     subparsers.add_parser("run", help="Jalankan daemon scheduler, worker & Telegram Bot")
@@ -128,14 +162,31 @@ def main():
     )
 
     # Command: dashboard
-    subparsers.add_parser("dashboard", help="Jalankan Web Status Dashboard terproteksi")
+    subparsers.add_parser("dashboard", help="Jalankan Web Status Dashboard")
 
     # Command: backup
     subparsers.add_parser("backup", help="Buat backup database ke storage/backups")
 
+    # Command: restore
+    restore_parser = subparsers.add_parser("restore", help="Pulihkan database dari file backup")
+    restore_parser.add_argument(
+        "--file",
+        dest="backup_file",
+        type=str,
+        required=True,
+        help="Path ke file database backup (.db)"
+    )
+
     args = parser.parse_args()
 
-    if args.command == "init-db":
+    if args.command == "self-check":
+        results = run_startup_self_check()
+        print(format_self_check_cli(results))
+    elif args.command == "dry-run":
+        asyncio.run(run_dry_run_simulation(args.pilar))
+    elif args.command == "daemon":
+        run_daemon()
+    elif args.command == "init-db":
         asyncio.run(run_init_db())
     elif args.command == "run":
         asyncio.run(run_orchestrator_and_bot())
@@ -146,8 +197,16 @@ def main():
     elif args.command == "dashboard":
         run_dashboard_server()
     elif args.command == "backup":
-        bk = backup_database()
+        maint = StorageMaintenance()
+        bk = maint.backup_database()
         print(f"[+] Backup database berhasil dibuat di: {bk}")
+    elif args.command == "restore":
+        maint = StorageMaintenance()
+        ok = maint.restore_database(args.backup_file)
+        if ok:
+            print(f"[+] Database berhasil dipulihkan dari: {args.backup_file}")
+        else:
+            print(f"[-] Gagal memulihkan database dari: {args.backup_file}")
     else:
         parser.print_help()
 

@@ -70,6 +70,21 @@ class TelegramC2Bot:
         target = self.alert_chat_id or (str(next(iter(self.admin_ids))) if self.admin_ids else "")
         return await self.send_message(chat_id=target, text=text)
 
+    async def send_raw_message(self, text: str) -> bool:
+        """Alias helper for broadcast_alert."""
+        return await self.broadcast_alert(text)
+
+    def send_alert(self, text: str):
+        """Synchronous fire-and-forget alert helper."""
+        try:
+            loop = asyncio.get_event_loop()
+            if loop.is_running():
+                asyncio.create_task(self.broadcast_alert(text))
+            else:
+                loop.run_until_complete(self.broadcast_alert(text))
+        except Exception as e:
+            logger.warning(f"Failed sync send_alert: {e}")
+
     # --- COMMAND PROCESSING LOGIC ---
 
     async def process_incoming_command(self, user_id: int, chat_id: str, command_text: str) -> str:
@@ -88,12 +103,15 @@ class TelegramC2Bot:
                 "🎬 *PITA MEDIA CONTROL CENTER*\n"
                 "═══════════════════════════\n"
                 "Selamat datang di remote control Pita Media. Perintah yang tersedia:\n\n"
-                "• `/status` - Lihat status worker, antrean, dan penggunaan biaya\n"
-                "• `/pause` - Jeda pengambilan job baru dari antrean\n"
+                "• `/status` - Lihat status worker, antrean, dan pengeluaran\n"
+                "• `/queue` - Lihat daftar job aktif & antrean rinci\n"
+                "• `/health` - Cek kesehatan kredensial & API external\n"
+                "• `/pause` - Jeda eksekusi job baru dari antrean\n"
                 "• `/resume` - Lanjutkan pemrosesan antrean konten\n"
-                "• `/report` - Ringkasan performa dan metrik konten\n"
+                "• `/report` - Ringkasan performa publikasi & QC\n"
+                "• `/restart_worker` - Reset & pulihkan status antrean\n"
                 "• `/job <id>` - Lihat detail lengkap job dan skor QC\n"
-                "• `/emergency_stop` - Hentikan seluruh proses seketika\n"
+                "• `/emergency_stop` - Hentikan seluruh sistem darurat\n"
             )
 
         elif base_cmd == "/status":
@@ -101,6 +119,42 @@ class TelegramC2Bot:
                 q_stats = await job_queue.get_queue_stats(session)
                 costs = await cost_governor.get_spend_metrics(session)
             return self.handle_status_command(user_id, q_stats, costs)
+
+        elif base_cmd == "/queue":
+            async with async_session_factory() as session:
+                stmt = select(Job).order_by(desc(Job.created_at)).limit(8)
+                res = await session.execute(stmt)
+                jobs = res.scalars().all()
+
+                if not jobs:
+                    return "📭 *Antrean Kosong*: Belum ada job dalam database."
+
+                lines = ["📋 *DAFTAR ANTREAN JOB TERAKHIR*", "═══════════════════════════"]
+                for j in jobs:
+                    lines.append(f"• `{j.id[:8]}` | #{j.pilar} | *{j.status}* | `{j.created_at.strftime('%H:%M:%S')}`")
+                return "\n".join(lines)
+
+        elif base_cmd == "/health":
+            from core.runtime.health_monitor import CredentialHealthMonitor
+            monitor = CredentialHealthMonitor(telegram_notifier=self)
+            health = monitor.run_health_cycle()
+
+            meta_status = "🟢 PASS" if health["meta"].get("status") == "PASS" else f"🔴 {health['meta'].get('status')}"
+            gemini_status = "🟢 PASS" if health["gemini"].get("status") == "PASS" else f"🟡 {health['gemini'].get('status')}"
+
+            return (
+                "🏥 *PITA MEDIA HEALTH REPORT*\n"
+                "═══════════════════════════\n"
+                f"• *Meta API*: {meta_status} ({health['meta'].get('message', '')})\n"
+                f"• *Gemini API*: {gemini_status} ({health['gemini'].get('message', '')})\n"
+                f"• *Overall State*: {'🟢 HEALTHY' if health['all_healthy'] else '⚠️ ATTENTION NEEDED'}\n"
+                f"🕒 Timestamp: `{datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S UTC')}`"
+            )
+
+        elif base_cmd == "/restart_worker":
+            from core.runtime.persistent_scheduler import persistent_scheduler
+            await persistent_scheduler.recover_in_flight_jobs()
+            return "🔄 *WORKER DI-RESET*: Status job yang menggantung telah dipulihkan ke antrean PENDING."
 
         elif base_cmd == "/pause":
             return self.handle_pause_command(user_id)
@@ -173,7 +227,7 @@ class TelegramC2Bot:
             return "⛔ *AKSES DITOLAK*: ID Telegram Anda tidak terdaftar sebagai Admin."
         state_badge = "🚨 EMERGENCY STOPPED" if self.is_emergency_stopped else ("⏸️ PAUSED" if self.is_paused else "🟢 ACTIVE & RUNNING")
         q_lines = "\n".join([f"  • {k}: {v}" for k, v in queue_stats.items()]) or "  • Antrean kosong"
-        
+
         return (
             f"🎬 *PITA MEDIA SYSTEM STATUS*\n"
             f"═══════════════════════════\n"
@@ -230,7 +284,7 @@ class TelegramC2Bot:
 
         self._polling_active = True
         offset = 0
-        print(f"[*] Telegram C2 Polling Listener AKTIF. Menunggu pesan masuk di @pitamediabot...", flush=True)
+        logger.info("Telegram C2 Polling Listener AKTIF. Menunggu pesan masuk di @pitamediabot...")
 
         async with httpx.AsyncClient(timeout=30.0) as client:
             while self._polling_active:
@@ -254,7 +308,7 @@ class TelegramC2Bot:
                                 chat_id = str(message.get("chat", {}).get("id"))
 
                                 if text and sender_id:
-                                    print(f"[{datetime.now(timezone.utc).strftime('%H:%M:%S')}] [TELEGRAM C2] Menerima '{text}' dari User ID: {sender_id}", flush=True)
+                                    logger.info(f"[TELEGRAM C2] Menerima '{text}' dari User ID: {sender_id}")
                                     reply_text = await self.process_incoming_command(sender_id, chat_id, text)
                                     await self.send_message(chat_id=chat_id, text=reply_text)
 
