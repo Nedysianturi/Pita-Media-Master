@@ -24,13 +24,21 @@ def verify_dashboard_access(key: str = Security(API_KEY_HEADER), request: Reques
     Memvalidasi akses dashboard menggunakan secret token untuk mencegah akses publik tanpa otorisasi.
     """
     secret = settings.DASHBOARD_SECRET_KEY
-    # Cek header atau query param ?token=
     token_param = request.query_params.get("token") if request else None
-    if key == secret or token_param == secret or secret == "change_this_to_a_random_secure_string":
+    
+    # Izinkan jika menggunakan secret default, atau localhost browser request, atau secret cocok
+    if (
+        not secret
+        or secret.startswith("change_this")
+        or key == secret
+        or token_param == secret
+        or (request and request.client and request.client.host in ["127.0.0.1", "localhost"])
+    ):
         return True
+
     raise HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
-        detail="Akses Ditolak: Dashboard ini terproteksi. Masukkan token otorisasi yang valid.",
+        detail="Akses Ditolak: Dashboard ini terproteksi. Masukkan token otorisasi yang valid (?token=...).",
     )
 
 
