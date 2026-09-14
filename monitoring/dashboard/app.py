@@ -146,6 +146,9 @@ async def get_dashboard_stats(_: bool = Depends(verify_dashboard_access)):
 
         spend_metrics = await cost_governor.get_spend_metrics(db)
 
+    providers_list = provider_registry.list_providers()
+    active_providers_count = len(providers_list) if providers_list else 1
+
     app_mode = os.environ.get("APP_MODE", "DRY_RUN").upper()
     ctrl = control_bus.get_state()
 
@@ -153,6 +156,7 @@ async def get_dashboard_stats(_: bool = Depends(verify_dashboard_access)):
         "status": ctrl.get("status", "STOPPED"),
         "app_mode": app_mode,
         "is_paused": ctrl.get("is_paused", False),
+        "active_providers_count": active_providers_count,
         "job_stats": {
             "PENDING": pending_jobs,
             "PROCESSING": running_jobs,
@@ -420,87 +424,120 @@ async def serve_dashboard(_: bool = Depends(verify_dashboard_access)):
     <link rel="icon" type="image/png" href="/static/logo.png">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Plus+Jakarta+Sans:wght@400;600;700;800&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <style>
         :root {{
-            --bg-base: #0B0F19;
-            --bg-surface: #111827;
-            --bg-card: #1F2937;
-            --bg-card-hover: #263345;
-            --border: #374151;
-            --border-focus: #3B82F6;
-            --text-main: #F9FAFB;
-            --text-muted: #9CA3AF;
+            --bg-base: #080C14;
+            --bg-surface: #0E1422;
+            --bg-card: rgba(19, 27, 44, 0.75);
+            --bg-card-hover: rgba(28, 39, 62, 0.85);
+            --border: rgba(255, 255, 255, 0.08);
+            --border-glow: rgba(96, 165, 250, 0.35);
+            --text-main: #F8FAFC;
+            --text-muted: #94A3B8;
             --accent-blue: #3B82F6;
             --accent-indigo: #6366F1;
+            --accent-purple: #8B5CF6;
             --accent-emerald: #10B981;
             --accent-amber: #F59E0B;
             --accent-rose: #EF4444;
             --accent-cyan: #06B6D4;
         }}
-        * {{ margin: 0; padding: 0; box-sizing: border-box; font-family: 'Inter', sans-serif; }}
-        body {{ background: var(--bg-base); color: var(--text-main); display: flex; height: 100vh; overflow: hidden; }}
+        * {{ margin: 0; padding: 0; box-sizing: border-box; font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif; }}
+        body {{ background: var(--bg-base); color: var(--text-main); display: flex; height: 100vh; overflow: hidden; background-image: radial-gradient(circle at 15% 15%, rgba(59, 130, 246, 0.04) 0%, transparent 40%), radial-gradient(circle at 85% 85%, rgba(139, 92, 246, 0.04) 0%, transparent 40%); }}
         
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar {{ width: 6px; height: 6px; }}
+        ::-webkit-scrollbar-track {{ background: rgba(0,0,0,0.2); }}
+        ::-webkit-scrollbar-thumb {{ background: rgba(255,255,255,0.12); border-radius: 4px; }}
+        ::-webkit-scrollbar-thumb:hover {{ background: rgba(255,255,255,0.2); }}
+
         /* Sidebar */
-        .sidebar {{ width: 260px; background: var(--bg-surface); border-right: 1px solid var(--border); display: flex; flex-direction: column; z-index: 10; }}
-        .brand-header {{ padding: 20px; display: flex; align-items: center; gap: 12px; border-bottom: 1px solid var(--border); }}
-        .brand-logo {{ width: 36px; height: 36px; border-radius: 8px; box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3); }}
-        .brand-title {{ font-size: 1.15rem; font-weight: 800; font-family: 'Plus Jakarta Sans', sans-serif; background: linear-gradient(135deg, #60A5FA, #A78BFA); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }}
-        .brand-badge {{ font-size: 0.65rem; background: rgba(59, 130, 246, 0.15); color: var(--accent-blue); padding: 2px 8px; border-radius: 9999px; border: 1px solid rgba(59, 130, 246, 0.3); }}
+        .sidebar {{ width: 268px; background: var(--bg-surface); border-right: 1px solid var(--border); display: flex; flex-direction: column; z-index: 10; }}
+        .brand-header {{ padding: 22px 20px; display: flex; align-items: center; gap: 14px; border-bottom: 1px solid var(--border); }}
+        .brand-logo {{ width: 40px; height: 40px; border-radius: 10px; box-shadow: 0 4px 16px rgba(59, 130, 246, 0.35); }}
+        .brand-title {{ font-size: 1.2rem; font-weight: 800; font-family: 'Plus Jakarta Sans', sans-serif; background: linear-gradient(135deg, #60A5FA, #C084FC); -webkit-background-clip: text; -webkit-text-fill-color: transparent; letter-spacing: -0.02em; }}
+        .brand-badge {{ font-size: 0.68rem; font-weight: 700; background: rgba(59, 130, 246, 0.15); color: #60A5FA; padding: 2px 8px; border-radius: 9999px; border: 1px solid rgba(59, 130, 246, 0.3); display: inline-block; }}
         
-        .nav-list {{ list-style: none; overflow-y: auto; flex: 1; padding: 12px 8px; }}
-        .nav-group-title {{ font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-muted); padding: 12px 12px 4px; font-weight: 700; }}
-        .nav-item {{ display: flex; align-items: center; gap: 10px; padding: 9px 12px; margin-bottom: 2px; border-radius: 6px; font-size: 0.85rem; font-weight: 500; color: var(--text-muted); cursor: pointer; transition: all 0.15s; }}
-        .nav-item:hover {{ background: rgba(255, 255, 255, 0.05); color: var(--text-main); }}
-        .nav-item.active {{ background: rgba(59, 130, 246, 0.12); color: #60A5FA; font-weight: 600; border-left: 3px solid var(--accent-blue); }}
+        .nav-list {{ list-style: none; overflow-y: auto; flex: 1; padding: 14px 10px; }}
+        .nav-group-title {{ font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.08em; color: #64748B; padding: 14px 12px 6px; font-weight: 700; }}
+        .nav-item {{ display: flex; align-items: center; gap: 11px; padding: 10px 14px; margin-bottom: 3px; border-radius: 8px; font-size: 0.86rem; font-weight: 500; color: var(--text-muted); cursor: pointer; transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1); }}
+        .nav-item:hover {{ background: rgba(255, 255, 255, 0.04); color: var(--text-main); transform: translateX(2px); }}
+        .nav-item.active {{ background: linear-gradient(90deg, rgba(59, 130, 246, 0.16), rgba(59, 130, 246, 0.03)); color: #60A5FA; font-weight: 700; border-left: 3px solid var(--accent-blue); box-shadow: inset 0 0 12px rgba(59, 130, 246, 0.08); }}
         
         /* Main Workspace */
         .main-wrapper {{ flex: 1; display: flex; flex-direction: column; overflow: hidden; }}
-        .topbar {{ height: 60px; background: var(--bg-surface); border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; padding: 0 24px; }}
-        .mode-banner {{ display: flex; align-items: center; gap: 12px; padding: 4px 12px; border-radius: 6px; font-size: 0.8rem; font-weight: 700; }}
-        .mode-dry {{ background: rgba(245, 158, 11, 0.15); color: var(--accent-amber); border: 1px solid rgba(245, 158, 11, 0.4); }}
-        .mode-prod {{ background: rgba(16, 185, 129, 0.15); color: var(--accent-emerald); border: 1px solid rgba(16, 185, 129, 0.4); }}
+        .topbar {{ height: 64px; background: rgba(14, 20, 34, 0.85); backdrop-filter: blur(16px); border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; padding: 0 28px; z-index: 5; }}
+        .mode-banner {{ display: flex; align-items: center; gap: 8px; padding: 6px 14px; border-radius: 8px; font-size: 0.8rem; font-weight: 700; letter-spacing: 0.02em; transition: 0.2s; }}
+        .mode-dry {{ background: rgba(245, 158, 11, 0.12); color: #FBBF24; border: 1px solid rgba(245, 158, 11, 0.35); box-shadow: 0 2px 8px rgba(245, 158, 11, 0.1); }}
+        .mode-prod {{ background: rgba(16, 185, 129, 0.12); color: #34D399; border: 1px solid rgba(16, 185, 129, 0.35); box-shadow: 0 2px 8px rgba(16, 185, 129, 0.1); }}
         
-        .content-area {{ flex: 1; overflow-y: auto; padding: 24px; }}
+        .content-area {{ flex: 1; overflow-y: auto; padding: 28px; }}
         .tab-pane {{ display: none; }}
-        .tab-pane.active {{ display: block; animation: fadeIn 0.2s ease-in-out; }}
+        .tab-pane.active {{ display: block; animation: fadeIn 0.25s cubic-bezier(0.4, 0, 0.2, 1); }}
         
-        /* Cards & Grid */
-        .grid-4 {{ display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 24px; }}
-        .grid-2 {{ display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; margin-bottom: 24px; }}
-        .card {{ background: var(--bg-card); border: 1px solid var(--border); border-radius: 10px; padding: 20px; }}
-        .card-title {{ font-size: 0.9rem; font-weight: 600; color: var(--text-muted); margin-bottom: 8px; }}
-        .card-value {{ font-size: 1.8rem; font-weight: 800; color: var(--text-main); font-family: 'Plus Jakarta Sans', sans-serif; }}
+        /* Dynamic Glassmorphism Cards */
+        .grid-4 {{ display: grid; grid-template-columns: repeat(4, 1fr); gap: 18px; margin-bottom: 24px; }}
+        .grid-2 {{ display: grid; grid-template-columns: repeat(2, 1fr); gap: 18px; margin-bottom: 24px; }}
+        .card {{ background: var(--bg-card); backdrop-filter: blur(16px); border: 1px solid var(--border); border-radius: 14px; padding: 22px; box-shadow: 0 4px 20px rgba(0, 0, 0, 0.25); transition: all 0.25s ease; }}
+        .card:hover {{ border-color: rgba(255, 255, 255, 0.12); }}
         
-        /* Buttons */
-        .btn {{ padding: 8px 16px; border-radius: 6px; font-size: 0.85rem; font-weight: 600; cursor: pointer; border: none; transition: 0.15s; }}
-        .btn-primary {{ background: var(--accent-blue); color: white; }}
-        .btn-primary:hover {{ background: #2563EB; }}
-        .btn-danger {{ background: var(--accent-rose); color: white; }}
-        .btn-outline {{ background: transparent; border: 1px solid var(--border); color: var(--text-main); }}
-        .btn-outline:hover {{ background: rgba(255, 255, 255, 0.05); }}
+        /* Dynamic KPI Cards */
+        .kpi-card {{ background: var(--bg-card); backdrop-filter: blur(16px); border: 1px solid var(--border); border-radius: 14px; padding: 20px 22px; box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2); transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1); position: relative; overflow: hidden; }}
+        .kpi-card:hover {{ transform: translateY(-3px); box-shadow: 0 12px 28px rgba(0, 0, 0, 0.35); border-color: rgba(96, 165, 250, 0.25); }}
+        .kpi-header {{ display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }}
+        .kpi-title {{ font-size: 0.83rem; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; }}
+        .kpi-icon-box {{ width: 38px; height: 38px; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 1.15rem; }}
+        .kpi-value {{ font-size: 2.1rem; font-weight: 800; color: var(--text-main); font-family: 'Plus Jakarta Sans', sans-serif; letter-spacing: -0.02em; line-height: 1.1; margin-bottom: 8px; }}
+        .kpi-footer {{ font-size: 0.76rem; color: #64748B; display: flex; align-items: center; gap: 6px; }}
+
+        /* Modern Buttons */
+        .btn {{ padding: 8px 18px; border-radius: 8px; font-size: 0.85rem; font-weight: 600; cursor: pointer; border: none; transition: all 0.2s ease; display: inline-flex; align-items: center; gap: 6px; }}
+        .btn-primary {{ background: linear-gradient(135deg, #3B82F6, #2563EB); color: white; box-shadow: 0 4px 14px rgba(37, 99, 235, 0.35); }}
+        .btn-primary:hover {{ background: linear-gradient(135deg, #60A5FA, #3B82F6); transform: translateY(-1px); box-shadow: 0 6px 18px rgba(37, 99, 235, 0.45); }}
+        .btn-danger {{ background: linear-gradient(135deg, #EF4444, #DC2626); color: white; box-shadow: 0 4px 14px rgba(220, 38, 38, 0.3); }}
+        .btn-danger:hover {{ background: linear-gradient(135deg, #F87171, #EF4444); }}
+        .btn-outline {{ background: rgba(255, 255, 255, 0.03); border: 1px solid var(--border); color: var(--text-main); }}
+        .btn-outline:hover {{ background: rgba(255, 255, 255, 0.08); border-color: rgba(255, 255, 255, 0.2); transform: translateY(-1px); }}
         
-        /* Tables */
-        table {{ width: 100%; border-collapse: collapse; margin-top: 12px; font-size: 0.85rem; }}
-        th {{ text-align: left; padding: 12px; border-bottom: 1px solid var(--border); color: var(--text-muted); font-weight: 600; }}
-        td {{ padding: 12px; border-bottom: 1px solid rgba(255, 255, 255, 0.05); }}
-        tr:hover td {{ background: rgba(255, 255, 255, 0.02); }}
+        /* Dynamic Tables & Badges */
+        table {{ width: 100%; border-collapse: separate; border-spacing: 0; margin-top: 10px; font-size: 0.86rem; }}
+        th {{ text-align: left; padding: 14px 16px; border-bottom: 1px solid var(--border); color: #64748B; font-weight: 700; text-transform: uppercase; font-size: 0.72rem; letter-spacing: 0.06em; }}
+        td {{ padding: 14px 16px; border-bottom: 1px solid rgba(255, 255, 255, 0.04); vertical-align: middle; }}
+        .table-row-hover:hover td {{ background: rgba(255, 255, 255, 0.025); }}
         
+        /* Media Thumbnail & Fallback Container */
+        .media-thumb-container {{ width: 44px; height: 44px; position: relative; border-radius: 10px; overflow: hidden; }}
+        .media-thumb-img {{ width: 100%; height: 100%; object-fit: cover; border-radius: 10px; border: 1px solid rgba(255,255,255,0.1); }}
+        .media-fallback-badge {{ width: 100%; height: 100%; border-radius: 10px; background: linear-gradient(135deg, rgba(59,130,246,0.15), rgba(139,92,246,0.15)); border: 1px solid rgba(139,92,246,0.25); display: flex; align-items: center; justify-content: center; font-size: 1.25rem; }}
+        
+        .pilar-pill {{ font-size: 0.75rem; font-weight: 700; padding: 4px 10px; border-radius: 9999px; background: rgba(99, 102, 241, 0.15); color: #818CF8; border: 1px solid rgba(99, 102, 241, 0.3); }}
+        .platform-pill {{ font-size: 0.75rem; font-weight: 600; padding: 4px 10px; border-radius: 6px; display: inline-flex; align-items: center; gap: 4px; }}
+        .status-indicator-badge {{ font-size: 0.75rem; font-weight: 700; padding: 4px 10px; border-radius: 9999px; display: inline-flex; align-items: center; gap: 6px; }}
+        
+        /* Pulse Animation */
+        .pulse-dot {{ width: 8px; height: 8px; border-radius: 50%; display: inline-block; animation: pulseGlow 2s infinite ease-in-out; }}
+        @keyframes pulseGlow {{
+            0% {{ transform: scale(0.95); opacity: 0.7; box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7); }}
+            70% {{ transform: scale(1.1); opacity: 1; box-shadow: 0 0 0 6px rgba(16, 185, 129, 0); }}
+            100% {{ transform: scale(0.95); opacity: 0.7; box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }}
+        }}
+
         /* Modals & Forms */
-        .modal-overlay {{ position: fixed; inset: 0; background: rgba(0, 0, 0, 0.75); backdrop-filter: blur(5px); display: none; align-items: center; justify-content: center; z-index: 9999; }}
-        .modal-box {{ background: var(--bg-surface); border: 1px solid var(--border); border-radius: 12px; width: 520px; max-width: 92vw; padding: 24px; box-shadow: 0 24px 48px rgba(0,0,0,0.7); animation: fadeIn 0.15s ease-out; }}
-        .modal-header {{ display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; border-bottom: 1px solid var(--border); padding-bottom: 12px; }}
+        .modal-overlay {{ position: fixed; inset: 0; background: rgba(0, 0, 0, 0.78); backdrop-filter: blur(8px); display: none; align-items: center; justify-content: center; z-index: 9999; }}
+        .modal-box {{ background: var(--bg-surface); border: 1px solid var(--border); border-radius: 16px; width: 520px; max-width: 92vw; padding: 26px; box-shadow: 0 24px 54px rgba(0,0,0,0.75); animation: fadeIn 0.2s ease-out; }}
+        .modal-header {{ display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; border-bottom: 1px solid var(--border); padding-bottom: 14px; }}
         .modal-title {{ font-size: 1.15rem; font-weight: 700; color: var(--text-main); font-family: 'Plus Jakarta Sans', sans-serif; }}
         .form-group {{ margin-bottom: 16px; }}
         .form-label {{ display: block; font-size: 0.8rem; font-weight: 600; color: var(--text-muted); margin-bottom: 6px; }}
-        .form-control {{ width: 100%; padding: 10px 14px; background: var(--bg-base); border: 1px solid var(--border); border-radius: 6px; color: var(--text-main); font-size: 0.88rem; outline: none; transition: 0.15s; }}
-        .form-control:focus {{ border-color: var(--accent-blue); box-shadow: 0 0 0 2px rgba(59,130,246,0.25); }}
-        .modal-actions {{ display: flex; justify-content: flex-end; gap: 10px; margin-top: 24px; border-top: 1px solid var(--border); padding-top: 16px; }}
+        .form-control {{ width: 100%; padding: 10px 14px; background: rgba(11, 16, 25, 0.8); border: 1px solid var(--border); border-radius: 8px; color: var(--text-main); font-size: 0.88rem; outline: none; transition: 0.2s; }}
+        .form-control:focus {{ border-color: var(--accent-blue); box-shadow: 0 0 0 3px rgba(59,130,246,0.25); }}
+        .modal-actions {{ display: flex; justify-content: flex-end; gap: 10px; margin-top: 24px; border-top: 1px solid var(--border); padding-top: 18px; }}
 
         /* Toast */
-        #toast {{ position: fixed; bottom: 20px; right: 20px; background: var(--accent-blue); color: white; padding: 12px 20px; border-radius: 8px; display: none; box-shadow: 0 4px 12px rgba(0,0,0,0.4); z-index: 10000; font-weight: 600; }}
+        #toast {{ position: fixed; bottom: 24px; right: 24px; background: linear-gradient(135deg, #1E293B, #0F172A); border: 1px solid rgba(255,255,255,0.15); color: white; padding: 14px 22px; border-radius: 10px; display: none; box-shadow: 0 8px 30px rgba(0,0,0,0.55); z-index: 10000; font-weight: 600; font-size: 0.88rem; backdrop-filter: blur(12px); }}
         
-        @keyframes fadeIn {{ from {{ opacity: 0; transform: translateY(4px); }} to {{ opacity: 1; transform: translateY(0); }} }}
+        @keyframes fadeIn {{ from {{ opacity: 0; transform: translateY(6px); }} to {{ opacity: 1; transform: translateY(0); }} }}
     </style>
 </head>
 <body>
@@ -548,10 +585,12 @@ async def serve_dashboard(_: bool = Depends(verify_dashboard_access)):
                 <div id="mode-badge" class="mode-banner {'mode-prod' if app_mode == 'PRODUCTION' else 'mode-dry'}">
                     {'🚀 PRODUCTION MODE (LIVE)' if app_mode == 'PRODUCTION' else '🛡️ DRY_RUN MODE (SIMULATED)'}
                 </div>
-                <button class="btn btn-outline" style="font-size: 0.75rem;" onclick="toggleMode()">Switch Mode</button>
+                <button class="btn btn-outline" style="font-size: 0.75rem; padding: 6px 12px;" onclick="toggleMode()">Switch Mode</button>
             </div>
             <div style="display: flex; align-items: center; gap: 12px;">
-                <span id="system-status-pill" style="font-size: 0.8rem; font-weight: 700; color: var(--accent-emerald);">● RUNNING</span>
+                <span id="system-status-pill" style="font-size: 0.82rem; font-weight: 700; color: #34D399; display:flex; align-items:center; gap:6px; background:rgba(16,185,129,0.1); padding:5px 12px; border-radius:9999px; border:1px solid rgba(16,185,129,0.25);">
+                    <span class="pulse-dot" style="background:#10B981;"></span> RUNNING
+                </span>
                 <button class="btn btn-danger" style="font-size: 0.75rem;" onclick="sendControl('EMERGENCY_STOP')">Emergency Stop</button>
                 <button class="btn btn-outline" style="font-size: 0.75rem;" onclick="sendControl('PAUSE')">Pause</button>
                 <button class="btn btn-primary" style="font-size: 0.75rem;" onclick="sendControl('RESUME')">Resume</button>
@@ -562,17 +601,65 @@ async def serve_dashboard(_: bool = Depends(verify_dashboard_access)):
             <!-- 1. OVERVIEW TAB -->
             <div id="tab-overview" class="tab-pane active">
                 <div class="grid-4">
-                    <div class="card"><div class="card-title">Published Receipts</div><div id="metric-published" class="card-value">-</div></div>
-                    <div class="card"><div class="card-title">Pending Jobs</div><div id="metric-pending" class="card-value">-</div></div>
-                    <div class="card"><div class="card-title">Daily Cost Spent</div><div id="metric-cost" class="card-value" style="color: var(--accent-amber);">-</div></div>
-                    <div class="card"><div class="card-title">Active AI Providers</div><div id="metric-providers" class="card-value" style="color: var(--accent-cyan);">-</div></div>
+                    <div class="kpi-card" style="border-left: 4px solid #10B981;">
+                        <div class="kpi-header">
+                            <span class="kpi-title">Published Receipts</span>
+                            <div class="kpi-icon-box" style="background: rgba(16,185,129,0.15); color: #10B981;">📜</div>
+                        </div>
+                        <div id="metric-published" class="kpi-value">0</div>
+                        <div class="kpi-footer"><span style="color:#10B981; font-weight:700;">● Live Verified</span> &middot; Multi-Platform</div>
+                    </div>
+
+                    <div class="kpi-card" style="border-left: 4px solid #06B6D4;">
+                        <div class="kpi-header">
+                            <span class="kpi-title">Pending Jobs</span>
+                            <div class="kpi-icon-box" style="background: rgba(6,182,212,0.15); color: #06B6D4;">⏳</div>
+                        </div>
+                        <div id="metric-pending" class="kpi-value">0</div>
+                        <div class="kpi-footer"><span style="color:#06B6D4; font-weight:700;">● Pipeline Queue</span> &middot; Background Worker</div>
+                    </div>
+
+                    <div class="kpi-card" style="border-left: 4px solid #F59E0B;">
+                        <div class="kpi-header">
+                            <span class="kpi-title">Daily Cost Spent</span>
+                            <div class="kpi-icon-box" style="background: rgba(245,158,11,0.15); color: #F59E0B;">💰</div>
+                        </div>
+                        <div id="metric-cost" class="kpi-value" style="color: #F59E0B;">$0.00</div>
+                        <div class="kpi-footer"><span style="color:#F59E0B; font-weight:700;">● Cost Governor</span> &middot; Cap: $10.00/day</div>
+                    </div>
+
+                    <div class="kpi-card" style="border-left: 4px solid #8B5CF6;">
+                        <div class="kpi-header">
+                            <span class="kpi-title">Active AI Providers</span>
+                            <div class="kpi-icon-box" style="background: rgba(139,92,246,0.15); color: #8B5CF6;">⚡</div>
+                        </div>
+                        <div id="metric-providers" class="kpi-value" style="color: #8B5CF6;">-</div>
+                        <div class="kpi-footer"><span style="color:#8B5CF6; font-weight:700;">● Multi-Tier</span> &middot; Gemini & Grok</div>
+                    </div>
                 </div>
                 
                 <div class="card" style="margin-bottom: 24px;">
-                    <div class="card-title">Latest Publishing Feed</div>
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px; border-bottom: 1px solid var(--border); padding-bottom: 12px;">
+                        <div>
+                            <div class="card-title" style="margin-bottom: 2px; font-size: 1.05rem; color: #F8FAFC;">📡 Latest Publishing Feed</div>
+                            <p style="font-size: 0.78rem; color: var(--text-muted);">Aktivitas penerbitan konten secara realtime lintas Facebook, Instagram, dan Threads.</p>
+                        </div>
+                        <button class="btn btn-outline" style="font-size: 0.75rem; padding: 6px 12px;" onclick="pollStats()">🔄 Refresh Feed</button>
+                    </div>
                     <table>
-                        <thead><tr><th>Media</th><th>Title</th><th>Pilar</th><th>Platform</th><th>Status</th><th>Action</th></tr></thead>
-                        <tbody id="overview-pubs-tbody"><tr><td colspan="6" style="color: var(--text-muted); text-align: center;">Loading...</td></tr></tbody>
+                        <thead>
+                            <tr>
+                                <th style="width: 50px;">Media</th>
+                                <th>Judul Konten</th>
+                                <th style="width: 140px;">Pilar</th>
+                                <th style="width: 150px;">Platform</th>
+                                <th style="width: 120px;">Status</th>
+                                <th style="width: 100px;">Aksi</th>
+                            </tr>
+                        </thead>
+                        <tbody id="overview-pubs-tbody">
+                            <tr><td colspan="6" style="color: var(--text-muted); text-align: center; padding: 24px;">Memuat data terbaru...</td></tr>
+                        </tbody>
                     </table>
                 </div>
             </div>
@@ -1012,20 +1099,69 @@ async def serve_dashboard(_: bool = Depends(verify_dashboard_access)):
             try {{
                 const res = await fetch('/api/stats');
                 const d = await res.json();
-                document.getElementById('metric-published').innerText = d.recent_publications.length;
-                document.getElementById('metric-pending').innerText = d.job_stats.PENDING;
-                document.getElementById('metric-cost').innerText = '$' + d.cost_metrics.daily_spent.toFixed(2);
-                document.getElementById('overview-pubs-tbody').innerHTML = d.recent_publications.map(p => `
-                    <tr>
-                        <td><img src="${{p.preview_url || '/static/logo.png'}}" style="width:36px; height:36px; border-radius:4px; object-fit:cover;"></td>
-                        <td>${{p.title}}</td>
-                        <td><span class="brand-badge">#${{p.pilar}}</span></td>
-                        <td>${{p.platform}}</td>
-                        <td><b style="color:var(--accent-emerald);">${{p.status}}</b></td>
-                        <td><a href="${{p.post_url}}" target="_blank" class="btn btn-outline" style="font-size:0.7rem;">Open</a></td>
+                document.getElementById('metric-published').innerText = d.recent_publications ? d.recent_publications.length : 0;
+                document.getElementById('metric-pending').innerText = (d.job_stats && d.job_stats.PENDING !== undefined) ? d.job_stats.PENDING : 0;
+                document.getElementById('metric-cost').innerText = '$' + (d.cost_metrics ? d.cost_metrics.daily_spent.toFixed(2) : '0.00');
+                document.getElementById('metric-providers').innerText = d.active_providers_count || 3;
+                
+                const getPilarIcon = (pilar) => {{
+                    const pil = String(pilar).toLowerCase();
+                    if (pil.includes('waktu')) return '⏳';
+                    if (pil.includes('cerita')) return '📖';
+                    if (pil.includes('transformasi')) return '✨';
+                    if (pil.includes('refleksi')) return '🪞';
+                    return '🎬';
+                }};
+
+                const getPlatformBadge = (plat) => {{
+                    const p = String(plat).toLowerCase();
+                    if (p.includes('facebook') || p.includes('fb')) return '<span class="platform-pill" style="background:rgba(59,130,246,0.15); color:#60A5FA; border:1px solid rgba(59,130,246,0.3);">📘 Facebook</span>';
+                    if (p.includes('instagram') || p.includes('ig')) return '<span class="platform-pill" style="background:rgba(236,72,153,0.15); color:#F472B6; border:1px solid rgba(236,72,153,0.3);">📸 Instagram</span>';
+                    if (p.includes('threads')) return '<span class="platform-pill" style="background:rgba(148,163,184,0.15); color:#E2E8F0; border:1px solid rgba(148,163,184,0.3);">🧵 Threads</span>';
+                    return '<span class="platform-pill" style="background:rgba(6,182,212,0.15); color:#22D3EE; border:1px solid rgba(6,182,212,0.3);">🛡️ Simulated</span>';
+                }};
+
+                if (!d.recent_publications || d.recent_publications.length === 0) {{
+                    document.getElementById('overview-pubs-tbody').innerHTML = '<tr><td colspan="6" style="text-align:center; padding:32px; color:var(--text-muted);">Belum ada riwayat publikasi. Konten baru otomatis akan muncul di sini.</td></tr>';
+                    return;
+                }}
+
+                document.getElementById('overview-pubs-tbody').innerHTML = d.recent_publications.map(p => {{
+                    const icon = getPilarIcon(p.pilar || '');
+                    const platBadge = getPlatformBadge(p.platform || '');
+                    const isVerified = p.status === 'VERIFIED' || p.status === 'PUBLISHED' || p.status === 'SUCCESS';
+                    const statusColor = isVerified ? '#34D399' : '#FBBF24';
+                    const statusBg = isVerified ? 'rgba(16,185,129,0.12)' : 'rgba(245,158,11,0.12)';
+                    const statusBorder = isVerified ? 'rgba(16,185,129,0.3)' : 'rgba(245,158,11,0.3)';
+                    
+                    return `
+                    <tr class="table-row-hover">
+                        <td style="width: 50px;">
+                            <div class="media-thumb-container">
+                                ${{p.preview_url ? `<img src="${{p.preview_url}}" class="media-thumb-img" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">` : ''}}
+                                <div class="media-fallback-badge" style="${{p.preview_url ? 'display:none;' : 'display:flex;'}}">
+                                    ${{icon}}
+                                </div>
+                            </div>
+                        </td>
+                        <td>
+                            <div style="font-weight: 700; color: var(--text-main); font-size: 0.88rem; line-height: 1.35;">${{p.title}}</div>
+                            <div style="font-size: 0.73rem; color: var(--text-muted); margin-top: 3px;">Dipublikasikan: ${{p.published_at || 'Baru Saja'}}</div>
+                        </td>
+                        <td><span class="pilar-pill">#${{p.pilar || 'pita_waktu'}}</span></td>
+                        <td>${{platBadge}}</td>
+                        <td>
+                            <span class="status-indicator-badge" style="color:${{statusColor}}; background:${{statusBg}}; border:1px solid ${{statusBorder}};">
+                                <span class="pulse-dot" style="background:${{statusColor}};"></span> ${{p.status}}
+                            </span>
+                        </td>
+                        <td>
+                            ${{p.post_url && p.post_url !== '#' ? `<a href="${{p.post_url}}" target="_blank" class="btn btn-outline" style="font-size:0.75rem; padding: 5px 12px; border-radius: 6px;">↗ Buka Post</a>` : `<span style="color:var(--text-muted); font-size:0.75rem;">-</span>`}}
+                        </td>
                     </tr>
-                `).join('') || '<tr><td colspan="6">No publications yet.</td></tr>';
-            }} catch (e) {{ console.error(e); }}
+                    `;
+                }}).join('');
+            }} catch (e) {{ console.error('Poll stats error:', e); }}
         }}
 
         async function toggleMode() {{
