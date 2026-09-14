@@ -81,6 +81,8 @@ class PitaCeritaCreator:
             prompts=prompts,
             output_dir=str(carousel_dir),
             prefix=f"slide_{job_id[:6]}",
+            title=idea.title,
+            pilar="pita_cerita",
             db_session=db_session,
             job_id=job_id,
         )
