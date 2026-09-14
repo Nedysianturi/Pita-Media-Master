@@ -140,13 +140,12 @@ async def trigger_content_generation(payload: Dict[str, Any], background_tasks: 
 async def publish_content_now(content_id: str, _: bool = Depends(verify_dashboard_access)):
     # 1. Ensure mode is set to PRODUCTION
     os.environ["APP_MODE"] = "PRODUCTION"
-    setattr(settings, "APP_MODE", "PRODUCTION")
     credential_manager.update_env_file({"APP_MODE": "PRODUCTION"})
 
     async with async_session_factory() as session:
         content_db = await session.get(Content, content_id)
         if not content_db:
-            raise HTTPException(status_code=404, detail="Konten tidak ditemukan.")
+            return JSONResponse(status_code=404, content={"success": False, "detail": "Konten tidak ditemukan."})
 
         from agents.publisher.publisher import publisher_agent
         payload = {
@@ -172,7 +171,7 @@ async def publish_content_now(content_id: str, _: bool = Depends(verify_dashboar
             fb_res = pub_res.get("platform_results", {}).get("facebook", {})
             if fb_res.get("status") == "FAILED":
                 err = fb_res.get("error") or "Gagal mempublikasikan ke Facebook."
-                raise HTTPException(status_code=500, detail=err)
+                return JSONResponse(status_code=400, content={"success": False, "detail": err})
 
             return {
                 "success": True,
@@ -180,8 +179,7 @@ async def publish_content_now(content_id: str, _: bool = Depends(verify_dashboar
                 "post_url": post_url or pub_res.get("permalink", "")
             }
         except Exception as e:
-            logger.error(f"Direct publish failed: {e}")
-            raise HTTPException(status_code=500, detail=f"Gagal menerbitkan ke Facebook: {str(e)}")
+            return JSONResponse(status_code=500, content={"success": False, "detail": f"Gagal menerbitkan ke Facebook: {str(e)}"})
 
 # --- CORE STATS & METRICS ---
 @app.get("/api/stats", response_class=JSONResponse)
@@ -1622,7 +1620,12 @@ async def serve_dashboard(_: bool = Depends(verify_dashboard_access)):
             showToast('🚀 Mengalihkan ke mode PRODUCTION dan mempublikasikan ke Facebook Fanspage...');
             try {{
                 const res = await fetch('/api/publish/now/' + contentId, {{ method: 'POST' }});
-                const d = await res.json();
+                let d;
+                try {{
+                    d = await res.json();
+                }} catch (jsonErr) {{
+                    d = {{ success: false, detail: 'Server mengembalikan status ' + res.status }};
+                }}
                 if (d.success) {{
                     showToast('🟢 ' + d.message);
                     closePostPreview();
@@ -1631,7 +1634,7 @@ async def serve_dashboard(_: bool = Depends(verify_dashboard_access)):
                         setTimeout(() => window.open(d.post_url, '_blank'), 1200);
                     }}
                 }} else {{
-                    showToast('🔴 Gagal terbit: ' + (d.detail || 'Eror'));
+                    showToast('🔴 Gagal terbit: ' + (d.detail || d.message || 'Eror'));
                 }}
             }} catch (e) {{
                 showToast('🔴 Eror: ' + e.message);
