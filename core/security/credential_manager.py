@@ -23,29 +23,105 @@ class CentralCredentialManager:
         self.secret_store = secret_store
         self._initialize_from_env()
 
+    @property
+    def env_file_path(self) -> Path:
+        return Path(__file__).resolve().parent.parent.parent / ".env"
+
+    def read_env_file(self) -> Dict[str, str]:
+        """Reads raw key-values directly from .env file."""
+        if not self.env_file_path.exists():
+            return {}
+        result = {}
+        try:
+            with open(self.env_file_path, "r", encoding="utf-8") as f:
+                for line in f:
+                    line = line.strip()
+                    if line and not line.startswith("#") and "=" in line:
+                        k, v = line.split("=", 1)
+                        result[k.strip()] = v.strip().strip("'\"")
+        except Exception as e:
+            logger.error(f"Error reading .env file: {e}")
+        return result
+
+    def update_env_file(self, updates: Dict[str, str]) -> bool:
+        """Updates or appends key-value pairs directly in the .env file preserving comments."""
+        try:
+            env_path = self.env_file_path
+            lines = []
+            if env_path.exists():
+                with open(env_path, "r", encoding="utf-8") as f:
+                    lines = f.readlines()
+
+            existing_keys_updated = set()
+            new_lines = []
+
+            for line in lines:
+                stripped = line.strip()
+                if stripped and not stripped.startswith("#") and "=" in stripped:
+                    k, _ = stripped.split("=", 1)
+                    k = k.strip()
+                    if k in updates:
+                        new_lines.append(f"{k}={updates[k]}\n")
+                        existing_keys_updated.add(k)
+                        continue
+                new_lines.append(line)
+
+            # Append any new keys not found in existing lines
+            for k, v in updates.items():
+                if k not in existing_keys_updated:
+                    new_lines.append(f"{k}={v}\n")
+
+            with open(env_path, "w", encoding="utf-8") as f:
+                f.writelines(new_lines)
+
+            # Reload into os.environ, settings, and SecretStore
+            for k, v in updates.items():
+                os.environ[k] = str(v)
+                if hasattr(settings, k):
+                    setattr(settings, k, v)
+                self.secret_store.set_secret(k.lower(), str(v))
+                self.secret_store.set_secret(k, str(v))
+
+            logger.info(f"Directly updated {len(updates)} keys in .env file.")
+            return True
+        except Exception as e:
+            logger.error(f"Failed to update .env file: {e}")
+            return False
+
     def _initialize_from_env(self):
         """Pre-seeds secret store from .env if not already stored."""
+        env_dict = self.read_env_file()
         mappings = [
-            ("gemini_api_key", settings.GEMINI_API_KEY),
-            ("xai_api_key", os.getenv("XAI_API_KEY", "")),
-            ("fb_page_access_token", settings.FB_PAGE_ACCESS_TOKEN),
-            ("fb_page_id", settings.FB_PAGE_ID),
-            ("instagram_account_id", os.getenv("INSTAGRAM_ACCOUNT_ID", "")),
-            ("threads_access_token", os.getenv("THREADS_ACCESS_TOKEN", "")),
-            ("threads_user_id", os.getenv("THREADS_USER_ID", "")),
-            ("telegram_bot_token", settings.TELEGRAM_BOT_TOKEN),
-            ("telegram_alert_chat_id", settings.TELEGRAM_ALERT_CHAT_ID),
+            ("gemini_api_key", env_dict.get("GEMINI_API_KEY") or settings.GEMINI_API_KEY),
+            ("xai_api_key", env_dict.get("XAI_API_KEY") or os.getenv("XAI_API_KEY", "")),
+            ("fb_page_access_token", env_dict.get("FB_PAGE_ACCESS_TOKEN") or settings.FB_PAGE_ACCESS_TOKEN),
+            ("fb_page_id", env_dict.get("FB_PAGE_ID") or settings.FB_PAGE_ID),
+            ("instagram_account_id", env_dict.get("INSTAGRAM_ACCOUNT_ID") or os.getenv("INSTAGRAM_ACCOUNT_ID", "")),
+            ("ig_access_token", env_dict.get("IG_ACCESS_TOKEN") or os.getenv("IG_ACCESS_TOKEN", "")),
+            ("threads_access_token", env_dict.get("THREADS_ACCESS_TOKEN") or os.getenv("THREADS_ACCESS_TOKEN", "")),
+            ("threads_user_id", env_dict.get("THREADS_USER_ID") or os.getenv("THREADS_USER_ID", "")),
+            ("telegram_bot_token", env_dict.get("TELEGRAM_BOT_TOKEN") or settings.TELEGRAM_BOT_TOKEN),
+            ("telegram_alert_chat_id", env_dict.get("TELEGRAM_ALERT_CHAT_ID") or settings.TELEGRAM_ALERT_CHAT_ID),
         ]
         for key, val in mappings:
-            if val and not self.secret_store.get_secret(key):
-                self.secret_store.set_secret(key, val)
+            if val:
+                self.secret_store.set_secret(key, str(val))
 
     def get_credential(self, key: str, fallback_env: Optional[str] = None) -> Any:
-        """Retrieves active credential value securely."""
+        """Retrieves active credential value securely, prioritizing direct .env read."""
+        # 1. Direct .env check
+        env_dict = self.read_env_file()
+        if fallback_env and fallback_env in env_dict and env_dict[fallback_env]:
+            return env_dict[fallback_env]
+        if key.upper() in env_dict and env_dict[key.upper()]:
+            return env_dict[key.upper()]
+
+        # 2. SecretStore check
         val = self.secret_store.get_secret(key)
         if val:
             return val
-        # Check prefixed keys for service dictionaries
+
+        # 3. Check prefixed keys for service dictionaries
         prefix_dict = {}
         for k in ["api_key", "access_token", "page_id", "ig_user_id", "threads_user_id", "user_id", "token"]:
             stored = self.secret_store.get_secret(f"{key}_{k}")
@@ -56,46 +132,55 @@ class CentralCredentialManager:
         if fallback_env:
             return os.getenv(fallback_env, "")
         return None
+
     def set_credential(self, service_name: str, credentials_dict: Dict[str, str], updated_by: str = "SYSTEM") -> bool:
-        """Stores a dictionary of credentials for a given service and synchronizes runtime settings."""
+        """Stores credentials, updates .env file directly, and synchronizes runtime settings."""
         sname = service_name.lower().strip()
+        env_updates = {}
+
         for k, v in credentials_dict.items():
             val = str(v).strip()
             self.secret_store.set_secret(f"{sname}_{k}", val)
             self.secret_store.set_secret(f"{sname}", val)
             self.secret_store.set_secret(k, val)
 
-            # Synchronize settings and runtime environment
+            # Map to canonical .env variable names
             if "gemini" in sname or "google" in sname:
+                env_updates["GEMINI_API_KEY"] = val
                 self.secret_store.set_secret("gemini_api_key", val)
                 self.secret_store.set_secret("GEMINI_API_KEY", val)
-                os.environ["GEMINI_API_KEY"] = val
-                settings.GEMINI_API_KEY = val
             elif "xai" in sname or "grok" in sname:
+                env_updates["XAI_API_KEY"] = val
                 self.secret_store.set_secret("xai_api_key", val)
                 self.secret_store.set_secret("XAI_API_KEY", val)
-                os.environ["XAI_API_KEY"] = val
-                settings.XAI_API_KEY = val
             elif "facebook" in sname or "fb" in sname:
+                if "id" in k.lower():
+                    env_updates["FB_PAGE_ID"] = val
+                else:
+                    env_updates["FB_PAGE_ACCESS_TOKEN"] = val
                 self.secret_store.set_secret("fb_page_access_token", val)
                 self.secret_store.set_secret("FB_PAGE_ACCESS_TOKEN", val)
-                os.environ["FB_PAGE_ACCESS_TOKEN"] = val
-                settings.FB_PAGE_ACCESS_TOKEN = val
             elif "instagram" in sname or "ig" in sname:
+                env_updates["IG_ACCESS_TOKEN"] = val
                 self.secret_store.set_secret("ig_access_token", val)
                 self.secret_store.set_secret("IG_ACCESS_TOKEN", val)
-                os.environ["IG_ACCESS_TOKEN"] = val
-                settings.IG_ACCESS_TOKEN = val
             elif "threads" in sname:
+                env_updates["THREADS_ACCESS_TOKEN"] = val
                 self.secret_store.set_secret("threads_access_token", val)
                 self.secret_store.set_secret("THREADS_ACCESS_TOKEN", val)
-                os.environ["THREADS_ACCESS_TOKEN"] = val
-                settings.THREADS_ACCESS_TOKEN = val
             elif "telegram" in sname:
+                if "id" in k.lower():
+                    env_updates["TELEGRAM_ALERT_CHAT_ID"] = val
+                else:
+                    env_updates["TELEGRAM_BOT_TOKEN"] = val
                 self.secret_store.set_secret("telegram_bot_token", val)
                 self.secret_store.set_secret("TELEGRAM_BOT_TOKEN", val)
-                os.environ["TELEGRAM_BOT_TOKEN"] = val
-                settings.TELEGRAM_BOT_TOKEN = val
+            else:
+                env_updates[k.upper()] = val
+
+        # Persist directly into .env file
+        if env_updates:
+            self.update_env_file(env_updates)
 
         self._record_audit_log(
             provider=service_name,

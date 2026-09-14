@@ -197,10 +197,32 @@ async def set_credential_endpoint(payload: Dict[str, Any], _: bool = Depends(ver
 @app.post("/api/credentials/test", response_class=JSONResponse)
 async def test_credential_endpoint(payload: Dict[str, Any], _: bool = Depends(verify_dashboard_access)):
     service_name = payload.get("service_name")
+    custom_token = payload.get("custom_token")
     if not service_name:
         raise HTTPException(status_code=400, detail="service_name required.")
-    res = credential_manager.test_connection(service_name)
+    res = credential_manager.test_connection(service_name, custom_token=custom_token)
     return res
+
+@app.get("/api/env", response_class=JSONResponse)
+async def get_env_endpoint(_: bool = Depends(verify_dashboard_access)):
+    env_data = credential_manager.read_env_file()
+    # Mask secrets for display unless explicit
+    return {"env": env_data}
+
+@app.post("/api/env/save", response_class=JSONResponse)
+async def save_env_endpoint(payload: Dict[str, Any], _: bool = Depends(verify_dashboard_access)):
+    env_updates = payload.get("env") or payload
+    if not isinstance(env_updates, dict):
+        raise HTTPException(status_code=400, detail="JSON object with environment variables required.")
+    
+    # Filter out empty or non-string values
+    cleaned = {str(k).strip(): str(v).strip() for k, v in env_updates.items() if str(k).strip()}
+    success = credential_manager.update_env_file(cleaned)
+    return {
+        "success": success,
+        "message": f"Berhasil menyimpan {len(cleaned)} konfigurasi langsung ke file .env!",
+        "timestamp": datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
+    }
 
 @app.get("/api/providers", response_class=JSONResponse)
 async def list_providers(_: bool = Depends(verify_dashboard_access)):
@@ -581,7 +603,7 @@ async def serve_dashboard(_: bool = Depends(verify_dashboard_access)):
                             <div class="card-title" style="margin-bottom: 4px;">Central Encrypted Vault (Windows DPAPI + AES-256)</div>
                             <p style="font-size: 0.8rem; color: var(--text-muted);">Kelola API Key AI & Token Akses Media Sosial secara aman. Kunci langsung dienkripsi di level OS tanpa pernah terekspos.</p>
                         </div>
-                        <button class="btn btn-outline" onclick="fetchCredentials()">🔄 Refresh Vault</button>
+                        <button class="btn btn-outline" onclick="fetchCredentials(); fetchEnvConfig();">🔄 Refresh Vault</button>
                     </div>
                     <table>
                         <thead>
@@ -594,6 +616,83 @@ async def serve_dashboard(_: bool = Depends(verify_dashboard_access)):
                         </thead>
                         <tbody id="credentials-tbody"></tbody>
                     </table>
+                </div>
+
+                <!-- DIRECT .ENV EDITOR CARD -->
+                <div class="card" style="margin-top: 24px;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; border-bottom: 1px solid var(--border); padding-bottom: 12px;">
+                        <div>
+                            <div class="card-title" style="margin-bottom: 4px; font-size: 1.05rem; color: #60A5FA;">📝 Editor File .env Langsung (Sinkronisasi Otomatis)</div>
+                            <p style="font-size: 0.8rem; color: var(--text-muted);">Nilai yang diisi atau diedit di bawah ini akan <b>langsung tersimpan ke file <code>.env</code> di disk</b> saat Anda menekan tombol Simpan.</p>
+                        </div>
+                        <button class="btn btn-primary" onclick="saveEnvConfigDirect()" style="padding: 10px 20px; font-size: 0.9rem; font-weight: 700; background: linear-gradient(135deg, #10B981, #059669); box-shadow: 0 4px 14px rgba(16,185,129,0.3);">💾 Simpan Langsung ke .env</button>
+                    </div>
+
+                    <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 20px;">
+                        <!-- Col 1: AI & Telegram -->
+                        <div>
+                            <div style="font-weight: 700; font-size: 0.85rem; color: var(--accent-blue); margin-bottom: 12px;">1. AI Providers & Telegram Bot</div>
+                            <div class="form-group">
+                                <label class="form-label">GEMINI_API_KEY <span style="color:var(--accent-rose);">*</span></label>
+                                <div style="position:relative;">
+                                    <input type="password" id="env-gemini-key" class="form-control" placeholder="AIzaSy...">
+                                    <button type="button" onclick="toggleInputVisibility('env-gemini-key')" style="position:absolute; right:10px; top:50%; transform:translateY(-50%); background:none; border:none; color:var(--text-muted); cursor:pointer;">👁️</button>
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">XAI_API_KEY (Opsional / Grok)</label>
+                                <div style="position:relative;">
+                                    <input type="password" id="env-xai-key" class="form-control" placeholder="xai-...">
+                                    <button type="button" onclick="toggleInputVisibility('env-xai-key')" style="position:absolute; right:10px; top:50%; transform:translateY(-50%); background:none; border:none; color:var(--text-muted); cursor:pointer;">👁️</button>
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">TELEGRAM_BOT_TOKEN <span style="color:var(--accent-rose);">*</span></label>
+                                <div style="position:relative;">
+                                    <input type="password" id="env-telegram-token" class="form-control" placeholder="8059238085:AAFK...">
+                                    <button type="button" onclick="toggleInputVisibility('env-telegram-token')" style="position:absolute; right:10px; top:50%; transform:translateY(-50%); background:none; border:none; color:var(--text-muted); cursor:pointer;">👁️</button>
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">TELEGRAM_ADMIN_IDS (ID Telegram Anda)</label>
+                                <input type="text" id="env-telegram-admins" class="form-control" placeholder="308917129">
+                            </div>
+                        </div>
+
+                        <!-- Col 2: Meta Graph API & Controls -->
+                        <div>
+                            <div style="font-weight: 700; font-size: 0.85rem; color: var(--accent-blue); margin-bottom: 12px;">2. Meta Graph API & Publisher</div>
+                            <div class="form-group">
+                                <label class="form-label">FB_PAGE_ID (Fanspage ID) <span style="color:var(--accent-rose);">*</span></label>
+                                <input type="text" id="env-fb-page-id" class="form-control" placeholder="1253340697871457">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">FB_PAGE_ACCESS_TOKEN (Meta Page Token) <span style="color:var(--accent-rose);">*</span></label>
+                                <div style="position:relative;">
+                                    <input type="password" id="env-fb-token" class="form-control" placeholder="EAAXHI...">
+                                    <button type="button" onclick="toggleInputVisibility('env-fb-token')" style="position:absolute; right:10px; top:50%; transform:translateY(-50%); background:none; border:none; color:var(--text-muted); cursor:pointer;">👁️</button>
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">IG_ACCESS_TOKEN (Instagram Business)</label>
+                                <div style="position:relative;">
+                                    <input type="password" id="env-ig-token" class="form-control" placeholder="IG token...">
+                                    <button type="button" onclick="toggleInputVisibility('env-ig-token')" style="position:absolute; right:10px; top:50%; transform:translateY(-50%); background:none; border:none; color:var(--text-muted); cursor:pointer;">👁️</button>
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">THREADS_ACCESS_TOKEN (Threads API)</label>
+                                <div style="position:relative;">
+                                    <input type="password" id="env-threads-token" class="form-control" placeholder="Threads token...">
+                                    <button type="button" onclick="toggleInputVisibility('env-threads-token')" style="position:absolute; right:10px; top:50%; transform:translateY(-50%); background:none; border:none; color:var(--text-muted); cursor:pointer;">👁️</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div style="display: flex; justify-content: flex-end; margin-top: 20px; padding-top: 14px; border-top: 1px solid var(--border);">
+                        <button class="btn btn-primary" onclick="saveEnvConfigDirect()" style="padding: 10px 24px; font-size: 0.9rem; font-weight: 700; background: linear-gradient(135deg, #10B981, #059669); box-shadow: 0 4px 14px rgba(16,185,129,0.3);">💾 Simpan Langsung ke .env</button>
+                    </div>
                 </div>
             </div>
 
@@ -740,7 +839,7 @@ async def serve_dashboard(_: bool = Depends(verify_dashboard_access)):
             if (tabId === 'queue') fetchQueue();
             if (tabId === 'receipts') fetchReceipts();
             if (tabId === 'providers') fetchProviders();
-            if (tabId === 'credentials') fetchCredentials();
+            if (tabId === 'credentials') {{ fetchCredentials(); fetchEnvConfig(); }}
             if (tabId === 'ab_testing') fetchExperiments();
             if (tabId === 'music') fetchMusic();
             if (tabId === 'qc') fetchQC();
@@ -1005,6 +1104,62 @@ async def serve_dashboard(_: bool = Depends(verify_dashboard_access)):
                 }}
             }} catch (e) {{
                 showToast('Eror: ' + e.message);
+            }}
+        }}
+
+        function toggleInputVisibility(elementId) {{
+            const el = document.getElementById(elementId);
+            if (el) {{
+                el.type = el.type === 'password' ? 'text' : 'password';
+            }}
+        }}
+
+        async function fetchEnvConfig() {{
+            try {{
+                const res = await fetch('/api/env');
+                const d = await res.json();
+                const env = d.env || {{}};
+                if (document.getElementById('env-gemini-key')) document.getElementById('env-gemini-key').value = env.GEMINI_API_KEY || '';
+                if (document.getElementById('env-xai-key')) document.getElementById('env-xai-key').value = env.XAI_API_KEY || '';
+                if (document.getElementById('env-telegram-token')) document.getElementById('env-telegram-token').value = env.TELEGRAM_BOT_TOKEN || '';
+                if (document.getElementById('env-telegram-admins')) document.getElementById('env-telegram-admins').value = env.TELEGRAM_ADMIN_IDS || '';
+                if (document.getElementById('env-fb-page-id')) document.getElementById('env-fb-page-id').value = env.FB_PAGE_ID || '';
+                if (document.getElementById('env-fb-token')) document.getElementById('env-fb-token').value = env.FB_PAGE_ACCESS_TOKEN || '';
+                if (document.getElementById('env-ig-token')) document.getElementById('env-ig-token').value = env.IG_ACCESS_TOKEN || '';
+                if (document.getElementById('env-threads-token')) document.getElementById('env-threads-token').value = env.THREADS_ACCESS_TOKEN || '';
+            }} catch (e) {{
+                console.error('Failed to load .env config:', e);
+            }}
+        }}
+
+        async function saveEnvConfigDirect() {{
+            showToast('Menyimpan perubahan langsung ke file .env...');
+            const updates = {{
+                GEMINI_API_KEY: document.getElementById('env-gemini-key').value.trim(),
+                XAI_API_KEY: document.getElementById('env-xai-key').value.trim(),
+                TELEGRAM_BOT_TOKEN: document.getElementById('env-telegram-token').value.trim(),
+                TELEGRAM_ADMIN_IDS: document.getElementById('env-telegram-admins').value.trim(),
+                FB_PAGE_ID: document.getElementById('env-fb-page-id').value.trim(),
+                FB_PAGE_ACCESS_TOKEN: document.getElementById('env-fb-token').value.trim(),
+                IG_ACCESS_TOKEN: document.getElementById('env-ig-token').value.trim(),
+                THREADS_ACCESS_TOKEN: document.getElementById('env-threads-token').value.trim()
+            }};
+
+            try {{
+                const res = await fetch('/api/env/save', {{
+                    method: 'POST',
+                    headers: {{ 'Content-Type': 'application/json' }},
+                    body: JSON.stringify(updates)
+                }});
+                const d = await res.json();
+                if (d.success) {{
+                    showToast('✅ ' + d.message);
+                    fetchCredentials();
+                }} else {{
+                    showToast('Eror: ' + (d.detail || 'Gagal menyimpan .env'));
+                }}
+            }} catch (e) {{
+                showToast('Eror jaringan: ' + e.message);
             }}
         }}
 
