@@ -125,7 +125,29 @@ class PublisherAgent:
                 continue
 
             try:
-                res = pub.publish_content(content_payload, dry_run=is_dry_run)
+                import inspect
+                if hasattr(pub, "publish") and inspect.iscoroutinefunction(pub.publish):
+                    raw_res = await pub.publish(
+                        content_id=content_id,
+                        job_id=content_payload.get("job_id", ""),
+                        content_payload=content_payload,
+                        is_dry_run=is_dry_run,
+                        db_session=db_session
+                    )
+                    post_id = raw_res.get("external_post_id") or raw_res.get("post_id", "")
+                    permalink = raw_res.get("permalink") or ""
+                    status = raw_res.get("status", "PUBLISHED")
+                    res = {
+                        "success": status in ["PUBLISHED", "SIMULATED_SUCCESS", "VERIFIED"],
+                        "platform": target,
+                        "post_id": post_id,
+                        "permalink": permalink,
+                        "status": status,
+                        "error": raw_res.get("error_message")
+                    }
+                else:
+                    res = pub.publish_content(content_payload, dry_run=is_dry_run)
+
                 platform_results[target] = res
 
                 # Record receipt
@@ -137,7 +159,7 @@ class PublisherAgent:
                     permalink=res.get("permalink", ""),
                     status=res.get("status", "PUBLISHED"),
                     app_mode=app_mode,
-                    verified=(res.get("status") in ["PUBLISHED", "SIMULATED_SUCCESS"]),
+                    verified=(res.get("status") in ["PUBLISHED", "SIMULATED_SUCCESS", "VERIFIED"]),
                     metrics=res.get("metrics", {}),
                     error_message=res.get("error")
                 )
