@@ -585,8 +585,7 @@ async def serve_dashboard(_: bool = Depends(verify_dashboard_access)):
             <li class="nav-item" onclick="switchTab('platforms')">🌐 Multi-Platform Hub</li>
             
             <div class="nav-group-title">AI & Infrastructure</div>
-            <li class="nav-item" onclick="switchTab('providers')">⚡ AI Providers & Tiers</li>
-            <li class="nav-item" onclick="switchTab('credentials')">🔐 Credentials & Vault</li>
+            <li class="nav-item" onclick="switchTab('credentials')">⚡ AI Providers & Kredensial</li>
             <li class="nav-item" onclick="switchTab('ab_testing')">🧪 A/B Experiments</li>
             <li class="nav-item" onclick="switchTab('music')">🎵 Music & Mood Engine</li>
             
@@ -730,24 +729,15 @@ async def serve_dashboard(_: bool = Depends(verify_dashboard_access)):
                 </div>
             </div>
 
-            <!-- 6. AI PROVIDERS TAB -->
-            <div id="tab-providers" class="tab-pane">
-                <div class="card" style="margin-bottom: 20px;">
-                    <div style="display: flex; justify-content: space-between; align-items: center;">
-                        <div class="card-title">Configured AI Providers & Multi-Tier Routing</div>
-                        <button class="btn btn-primary" onclick="showAddProviderModal()">+ ADD PROVIDER</button>
-                    </div>
-                    <table><thead><tr><th>Provider ID</th><th>Name</th><th>Tier</th><th>Capabilities</th><th>Status</th></tr></thead><tbody id="providers-tbody"></tbody></table>
-                </div>
-            </div>
-
-            <!-- 7. CREDENTIALS TAB (UNIFIED SINGLE PANEL) -->
+            <!-- 6 & 7. UNIFIED AI PROVIDERS & CREDENTIALS TAB -->
             <div id="tab-credentials" class="tab-pane">
                 <div class="card" style="margin-bottom: 24px;">
                     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; border-bottom: 1px solid var(--border); padding-bottom: 14px;">
                         <div>
-                            <div class="card-title" style="margin-bottom: 4px; font-size: 1.1rem; color: #60A5FA;">🔐 Manajemen Kredensial & API Key (Tersinkronisasi Otomatis)</div>
-                            <p style="font-size: 0.82rem; color: var(--text-muted);">Satu tempat untuk mengatur seluruh API Key AI, Token Meta, dan Bot Telegram. Perubahan langsung tersimpan ke file <code>.env</code> dan dienkripsi ke Windows Vault tanpa perlu mengulang input.</p>
+                            <div class="card-title" style="margin-bottom: 4px; font-size: 1.15rem; color: #60A5FA; display:flex; align-items:center; gap:8px;">
+                                ⚡ AI Providers, Kredensial & Status Mesin
+                            </div>
+                            <p style="font-size: 0.82rem; color: var(--text-muted); margin-bottom: 0;">Satu pusat terpadu untuk monitoring status mesin AI (Tier 1 & Tier 2), input API Key, Token Fanspage Meta, dan Bot Telegram. Seluruh perubahan langsung tersimpan ke <code>.env</code> dan tersinkronisasi otomatis.</p>
                         </div>
                         <div style="display: flex; gap: 10px;">
                             <button class="btn btn-outline" onclick="fetchEnvConfig(true);" style="font-size: 0.85rem;">🔄 Refresh Data</button>
@@ -758,17 +748,22 @@ async def serve_dashboard(_: bool = Depends(verify_dashboard_access)):
                     <!-- 3 Logical Columns / Cards -->
                     <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px;">
                         
-                        <!-- Panel 1: AI Provider Keys -->
+                        <!-- Panel 1: AI Provider Keys & Tier Monitoring -->
                         <div style="background: rgba(255,255,255,0.02); border: 1px solid var(--border); border-radius: 8px; padding: 16px;">
-                            <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px;">
-                                <div style="font-weight: 700; font-size: 0.9rem; color: #60A5FA;">🤖 AI Providers</div>
-                                <span class="brand-badge">Generation & Reasoning</span>
+                            <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; border-bottom: 1px solid rgba(255,255,255,0.06); padding-bottom: 10px;">
+                                <div style="font-weight: 700; font-size: 0.92rem; color: #60A5FA; display:flex; align-items:center; gap:6px;">
+                                    🤖 AI Engines & Multi-Tier
+                                </div>
+                                <button class="btn btn-outline" style="font-size: 0.72rem; padding: 4px 8px;" onclick="showAddProviderModal()">+ Add Provider</button>
                             </div>
 
-                            <!-- GEMINI_API_KEY -->
-                            <div class="form-group">
-                                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
-                                    <label class="form-label" style="margin-bottom: 0;">GEMINI_API_KEY (Utama) <span style="color:var(--accent-rose);">*</span></label>
+                            <!-- GEMINI_API_KEY (Utama) -->
+                            <div class="form-group" style="background: rgba(96,165,250,0.03); border: 1px solid rgba(96,165,250,0.15); border-radius: 6px; padding: 12px; margin-bottom: 14px;">
+                                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+                                    <div style="display:flex; align-items:center; gap:6px;">
+                                        <label class="form-label" style="margin-bottom: 0; font-weight: 700;">GEMINI_API_KEY (Utama)</label>
+                                        <span class="brand-badge" style="color:#60A5FA; border-color:rgba(96,165,250,0.4); font-size:0.65rem;">Tier 1</span>
+                                    </div>
                                     <span id="status-gemini" style="font-size: 0.72rem; font-weight: 600; color: var(--text-muted);">● Menunggu Uji</span>
                                 </div>
                                 <div style="position:relative; display: flex; gap: 6px;">
@@ -778,13 +773,19 @@ async def serve_dashboard(_: bool = Depends(verify_dashboard_access)):
                                     </div>
                                     <button class="btn btn-outline" style="font-size: 0.75rem; padding: 6px 10px; white-space: nowrap;" onclick="testSingleCred('gemini', 'env-gemini-key', 'status-gemini')">🔍 Test</button>
                                 </div>
-                                <small style="font-size: 0.72rem; color: var(--text-muted);">Model: Gemini 2.5 Flash, Imagen 3, Veo</small>
+                                <div style="display:flex; justify-content:space-between; margin-top:6px; font-size:0.7rem; color:var(--text-muted);">
+                                    <span>Model: Gemini 3.6 Flash, Imagen 3, Veo</span>
+                                    <span style="color:#34D399; font-weight:600;">TEXT, REASONING, IMAGE</span>
+                                </div>
                             </div>
 
                             <!-- GEMINI_API_KEY_2 (Cadangan / Auto-Failover) -->
-                            <div class="form-group" style="margin-top: 14px;">
-                                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
-                                    <label class="form-label" style="margin-bottom: 0;">GEMINI_API_KEY_2 (Cadangan / Failover)</label>
+                            <div class="form-group" style="background: rgba(245,158,11,0.03); border: 1px solid rgba(245,158,11,0.15); border-radius: 6px; padding: 12px; margin-bottom: 14px;">
+                                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+                                    <div style="display:flex; align-items:center; gap:6px;">
+                                        <label class="form-label" style="margin-bottom: 0; font-weight: 700;">GEMINI_API_KEY_2 (Cadangan)</label>
+                                        <span class="brand-badge" style="color:#F59E0B; border-color:rgba(245,158,11,0.4); font-size:0.65rem;">Tier 1 Backup</span>
+                                    </div>
                                     <span id="status-gemini-2" style="font-size: 0.72rem; font-weight: 600; color: var(--text-muted);">● Belum Diatur</span>
                                 </div>
                                 <div style="position:relative; display: flex; gap: 6px;">
@@ -794,13 +795,19 @@ async def serve_dashboard(_: bool = Depends(verify_dashboard_access)):
                                     </div>
                                     <button class="btn btn-outline" style="font-size: 0.75rem; padding: 6px 10px; white-space: nowrap;" onclick="testSingleCred('gemini_2', 'env-gemini-key-2', 'status-gemini-2')">🔍 Test</button>
                                 </div>
-                                <small style="font-size: 0.72rem; color: var(--text-muted);">Otomatis aktif jika kuota harian Key Utama habis (429)</small>
+                                <div style="display:flex; justify-content:space-between; margin-top:6px; font-size:0.7rem; color:var(--text-muted);">
+                                    <span>Rotasi otomatis jika kuota harian Key 1 habis</span>
+                                    <span style="color:#F59E0B; font-weight:600;">AUTO-FAILOVER</span>
+                                </div>
                             </div>
 
-                            <!-- XAI_API_KEY -->
-                            <div class="form-group" style="margin-top: 14px;">
-                                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
-                                    <label class="form-label" style="margin-bottom: 0;">XAI_API_KEY (Grok / Cadangan)</label>
+                            <!-- XAI_API_KEY (Grok / Cadangan) -->
+                            <div class="form-group" style="background: rgba(167,139,250,0.03); border: 1px solid rgba(167,139,250,0.15); border-radius: 6px; padding: 12px;">
+                                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+                                    <div style="display:flex; align-items:center; gap:6px;">
+                                        <label class="form-label" style="margin-bottom: 0; font-weight: 700;">XAI_API_KEY (Grok)</label>
+                                        <span class="brand-badge" style="color:#A78BFA; border-color:rgba(167,139,250,0.4); font-size:0.65rem;">Tier 2 Fallback</span>
+                                    </div>
                                     <span id="status-xai" style="font-size: 0.72rem; font-weight: 600; color: var(--text-muted);">● Menunggu Uji</span>
                                 </div>
                                 <div style="position:relative; display: flex; gap: 6px;">
@@ -810,7 +817,10 @@ async def serve_dashboard(_: bool = Depends(verify_dashboard_access)):
                                     </div>
                                     <button class="btn btn-outline" style="font-size: 0.75rem; padding: 6px 10px; white-space: nowrap;" onclick="testSingleCred('xai', 'env-xai-key', 'status-xai')">🔍 Test</button>
                                 </div>
-                                <small style="font-size: 0.72rem; color: var(--text-muted);">Secondary fallback jika kuota Gemini penuh</small>
+                                <div style="display:flex; justify-content:space-between; margin-top:6px; font-size:0.7rem; color:var(--text-muted);">
+                                    <span>Secondary fallback non-Google</span>
+                                    <span style="color:#A78BFA; font-weight:600;">TEXT, REASONING</span>
+                                </div>
                             </div>
                         </div>
 
@@ -1170,8 +1180,10 @@ async def serve_dashboard(_: bool = Depends(verify_dashboard_access)):
         function switchTab(tabId) {{
             document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
             document.querySelectorAll('.tab-pane').forEach(el => el.classList.remove('active'));
-            event.currentTarget.classList.add('active');
-            const target = document.getElementById('tab-' + tabId);
+            if (event && event.currentTarget) event.currentTarget.classList.add('active');
+            
+            const effectiveTab = (tabId === 'providers') ? 'credentials' : tabId;
+            const target = document.getElementById('tab-' + effectiveTab);
             if (target) target.classList.add('active');
 
             if (tabId === 'overview') pollStats();
@@ -1179,8 +1191,7 @@ async def serve_dashboard(_: bool = Depends(verify_dashboard_access)):
             if (tabId === 'content') fetchContent();
             if (tabId === 'queue') fetchQueue();
             if (tabId === 'receipts') fetchReceipts();
-            if (tabId === 'providers') fetchProviders();
-            if (tabId === 'credentials') fetchEnvConfig();
+            if (tabId === 'providers' || tabId === 'credentials') fetchEnvConfig();
             if (tabId === 'ab_testing') fetchExperiments();
             if (tabId === 'music') fetchMusic();
             if (tabId === 'qc') fetchQC();
