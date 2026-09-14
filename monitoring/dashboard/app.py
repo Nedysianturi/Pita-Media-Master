@@ -560,6 +560,48 @@ async def serve_dashboard(_: bool = Depends(verify_dashboard_access)):
         .form-control:focus {{ border-color: var(--accent-blue); box-shadow: 0 0 0 3px rgba(59,130,246,0.25); }}
         .modal-actions {{ display: flex; justify-content: flex-end; gap: 10px; margin-top: 24px; border-top: 1px solid var(--border); padding-top: 18px; }}
 
+        /* Menu Guide Header Card (Indonesian Descriptions) */
+        .menu-guide-card {{
+            background: linear-gradient(135deg, rgba(30, 41, 59, 0.75), rgba(15, 23, 42, 0.88));
+            border: 1px solid rgba(96, 165, 250, 0.22);
+            border-left: 4px solid #3B82F6;
+            border-radius: 12px;
+            padding: 16px 20px;
+            margin-bottom: 22px;
+            box-shadow: 0 4px 18px rgba(0, 0, 0, 0.25);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 16px;
+        }}
+        .menu-guide-title {{
+            font-size: 1.12rem;
+            font-weight: 800;
+            color: #F8FAFC;
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 4px;
+        }}
+        .menu-guide-desc {{
+            font-size: 0.81rem;
+            color: #94A3B8;
+            line-height: 1.45;
+        }}
+        .menu-guide-tip {{
+            background: rgba(59, 130, 246, 0.1);
+            border: 1px dashed rgba(96, 165, 250, 0.35);
+            padding: 8px 12px;
+            border-radius: 8px;
+            font-size: 0.76rem;
+            color: #93C5FD;
+            white-space: nowrap;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }}
+
         /* Toast */
         #toast {{ position: fixed; bottom: 24px; right: 24px; background: linear-gradient(135deg, #1E293B, #0F172A); border: 1px solid rgba(255,255,255,0.15); color: white; padding: 14px 22px; border-radius: 10px; display: none; box-shadow: 0 8px 30px rgba(0,0,0,0.55); z-index: 10000; font-weight: 600; font-size: 0.88rem; backdrop-filter: blur(12px); }}
         
@@ -577,30 +619,16 @@ async def serve_dashboard(_: bool = Depends(verify_dashboard_access)):
             </div>
         </div>
         <ul class="nav-list">
-            <div class="nav-group-title">Command & Control</div>
-            <li class="nav-item active" onclick="switchTab('overview')">📊 Overview</li>
-            <li class="nav-item" onclick="switchTab('content')">🎬 Content Studio</li>
-            <li class="nav-item" onclick="switchTab('queue')">⏳ Job Queue</li>
-            <li class="nav-item" onclick="switchTab('receipts')">📜 Publishing Receipts</li>
-            <li class="nav-item" onclick="switchTab('platforms')">🌐 Multi-Platform Hub</li>
+            <div class="nav-group-title">Menu Utama</div>
+            <li class="nav-item active" onclick="switchTab('overview')">📊 Beranda & Ringkasan</li>
+            <li class="nav-item" onclick="switchTab('content')">🎬 Studio Konten & Penerbitan</li>
+            <li class="nav-item" onclick="switchTab('credentials')">⚡ Koneksi AI & Akun Medsos</li>
             
-            <div class="nav-group-title">AI & Infrastructure</div>
-            <li class="nav-item" onclick="switchTab('credentials')">⚡ AI Providers & Kredensial</li>
-            <li class="nav-item" onclick="switchTab('ab_testing')">🧪 A/B Experiments</li>
-            <li class="nav-item" onclick="switchTab('music')">🎵 Music & Mood Engine</li>
+            <div class="nav-group-title">Kualitas & Optimasi</div>
+            <li class="nav-item" onclick="switchTab('quality')">🛡️ Kualitas, Musik & Eksperimen</li>
             
-            <div class="nav-group-title">Quality & Strategy</div>
-            <li class="nav-item" onclick="switchTab('learning')">🧠 Learning Center</li>
-            <li class="nav-item" onclick="switchTab('qc')">🛡️ QC & Quality Gate</li>
-            <li class="nav-item" onclick="switchTab('strategy')">📈 Strategy & Heatmap</li>
-            <li class="nav-item" onclick="switchTab('costs')">💰 Cost Governor</li>
-            <li class="nav-item" onclick="switchTab('storage')">💾 Storage & Disk Guard</li>
-            
-            <div class="nav-group-title">System & Governance</div>
-            <li class="nav-item" onclick="switchTab('health')">❤️ System Health</li>
-            <li class="nav-item" onclick="switchTab('reports')">📑 Executive Reports</li>
-            <li class="nav-item" onclick="switchTab('logs')">💻 Terminal Logs</li>
-            <li class="nav-item" onclick="switchTab('settings')">⚙️ Settings & Versioning</li>
+            <div class="nav-group-title">Sistem & Tata Kelola</div>
+            <li class="nav-item" onclick="switchTab('system')">⚙️ Kesehatan & Pengaturan Sistem</li>
         </ul>
     </div>
     
@@ -623,39 +651,49 @@ async def serve_dashboard(_: bool = Depends(verify_dashboard_access)):
         </div>
         
         <div class="content-area">
-            <!-- 1. OVERVIEW TAB -->
+            <!-- 1. BERANDA & RINGKASAN (OVERVIEW) -->
             <div id="tab-overview" class="tab-pane active">
+                <div class="menu-guide-card">
+                    <div>
+                        <div class="menu-guide-title">📊 Beranda & Ringkasan Sistem</div>
+                        <div class="menu-guide-desc">Pusat komando dan pemantauan aktivitas Pita Media secara langsung. Menampilkan metrik utama (konten terbit, antrean pipeline, estimasi biaya harian, dan provider AI aktif) serta feed postingan terbaru dengan tombol pratinjau interaktif.</div>
+                    </div>
+                    <div class="menu-guide-tip">
+                        💡 <b>Mode:</b> Klik 'Switch Mode' di atas untuk beralih antara Simulasi (DRY RUN) dan Live (PRODUCTION).
+                    </div>
+                </div>
+
                 <div class="grid-4">
                     <div class="kpi-card" style="border-left: 4px solid #10B981;">
                         <div class="kpi-header">
-                            <span class="kpi-title">Published Receipts</span>
+                            <span class="kpi-title">Konten Terbit</span>
                             <div class="kpi-icon-box" style="background: rgba(16,185,129,0.15); color: #10B981;">📜</div>
                         </div>
                         <div id="metric-published" class="kpi-value">0</div>
-                        <div class="kpi-footer"><span style="color:#10B981; font-weight:700;">● Live Verified</span> &middot; Multi-Platform</div>
+                        <div class="kpi-footer"><span style="color:#10B981; font-weight:700;">● Terverifikasi</span> &middot; Multi-Platform</div>
                     </div>
 
                     <div class="kpi-card" style="border-left: 4px solid #06B6D4;">
                         <div class="kpi-header">
-                            <span class="kpi-title">Pending Jobs</span>
+                            <span class="kpi-title">Antrean Proses</span>
                             <div class="kpi-icon-box" style="background: rgba(6,182,212,0.15); color: #06B6D4;">⏳</div>
                         </div>
                         <div id="metric-pending" class="kpi-value">0</div>
-                        <div class="kpi-footer"><span style="color:#06B6D4; font-weight:700;">● Pipeline Queue</span> &middot; Background Worker</div>
+                        <div class="kpi-footer"><span style="color:#06B6D4; font-weight:700;">● Pipeline Aktif</span> &middot; Background Daemon</div>
                     </div>
 
                     <div class="kpi-card" style="border-left: 4px solid #F59E0B;">
                         <div class="kpi-header">
-                            <span class="kpi-title">Daily Cost Spent</span>
+                            <span class="kpi-title">Biaya AI Hari Ini</span>
                             <div class="kpi-icon-box" style="background: rgba(245,158,11,0.15); color: #F59E0B;">💰</div>
                         </div>
                         <div id="metric-cost" class="kpi-value" style="color: #F59E0B;">$0.00</div>
-                        <div class="kpi-footer"><span style="color:#F59E0B; font-weight:700;">● Cost Governor</span> &middot; Cap: $10.00/day</div>
+                        <div class="kpi-footer"><span style="color:#F59E0B; font-weight:700;">● Cost Governor</span> &middot; Batas: $10/hari</div>
                     </div>
 
                     <div class="kpi-card" style="border-left: 4px solid #8B5CF6;">
                         <div class="kpi-header">
-                            <span class="kpi-title">Active AI Providers</span>
+                            <span class="kpi-title">Mesin AI Aktif</span>
                             <div class="kpi-icon-box" style="background: rgba(139,92,246,0.15); color: #8B5CF6;">⚡</div>
                         </div>
                         <div id="metric-providers" class="kpi-value" style="color: #8B5CF6;">-</div>
@@ -666,8 +704,8 @@ async def serve_dashboard(_: bool = Depends(verify_dashboard_access)):
                 <div class="card" style="margin-bottom: 24px;">
                     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px; border-bottom: 1px solid var(--border); padding-bottom: 12px;">
                         <div>
-                            <div class="card-title" style="margin-bottom: 2px; font-size: 1.05rem; color: #F8FAFC;">📡 Latest Publishing Feed</div>
-                            <p style="font-size: 0.78rem; color: var(--text-muted);">Aktivitas penerbitan konten secara realtime lintas Facebook, Instagram, dan Threads.</p>
+                            <div class="card-title" style="margin-bottom: 2px; font-size: 1.05rem; color: #F8FAFC;">📡 Feed Postingan & Publikasi Terkini</div>
+                            <p style="font-size: 0.78rem; color: var(--text-muted);">Daftar riwayat konten yang telah dibuat dan dipublikasikan ke media sosial.</p>
                         </div>
                         <button class="btn btn-outline" style="font-size: 0.75rem; padding: 6px 12px;" onclick="pollStats()">🔄 Refresh Feed</button>
                     </div>
@@ -679,7 +717,7 @@ async def serve_dashboard(_: bool = Depends(verify_dashboard_access)):
                                 <th style="width: 140px;">Pilar</th>
                                 <th style="width: 150px;">Platform</th>
                                 <th style="width: 120px;">Status</th>
-                                <th style="width: 100px;">Aksi</th>
+                                <th style="width: 120px;">Aksi</th>
                             </tr>
                         </thead>
                         <tbody id="overview-pubs-tbody">
@@ -689,55 +727,76 @@ async def serve_dashboard(_: bool = Depends(verify_dashboard_access)):
                 </div>
             </div>
 
-            <!-- 2. CONTENT STUDIO TAB -->
+            <!-- 2. STUDIO KONTEN & PENERBITAN (CONTENT + QUEUE + RECEIPTS) -->
             <div id="tab-content" class="tab-pane">
-                <div class="card" style="margin-bottom: 20px;">
-                    <div class="card-title">Manual Content Trigger (AI Multi-Agent Studio)</div>
-                    <p style="font-size: 0.8rem; color: var(--text-muted); margin-top: 4px;">Picu pembuatan naskah, slide media, dan evaluasi Quality Control secara instan untuk pilar tertentu.</p>
-                    <div style="display: flex; flex-wrap: wrap; gap: 12px; margin-top: 14px;">
-                        <button class="btn btn-primary" onclick="triggerStudio('pita_waktu')">⏳ Generate Pita Waktu</button>
-                        <button class="btn btn-outline" onclick="triggerStudio('pita_cerita')">📖 Generate Pita Cerita (Carousel)</button>
-                        <button class="btn btn-outline" onclick="triggerStudio('pita_transformasi')">✨ Generate Pita Transformasi (Reels)</button>
-                        <button class="btn btn-outline" onclick="triggerStudio('pita_refleksi')">🪞 Generate Pita Refleksi</button>
+                <div class="menu-guide-card">
+                    <div>
+                        <div class="menu-guide-title">🎬 Studio Konten, Antrean & Bukti Penerbitan</div>
+                        <div class="menu-guide-desc">Ruang kreasi mandiri 4 pilar filosofis (Pita Waktu, Pita Cerita, Pita Transformasi, Pita Refleksi). Anda dapat memicu pembuatan konten secara instan, melihat galeri visual & naskah yang selesai, serta memantau antrean pemrosesan dan tanda terima publikasi media sosial.</div>
+                    </div>
+                    <div class="menu-guide-tip">
+                        💡 <b>Tips:</b> Klik salah satu tombol 'Generate' di bawah untuk membuat konten baru secara manual.
                     </div>
                 </div>
-                <div class="card">
+
+                <!-- Generator Buttons -->
+                <div class="card" style="margin-bottom: 20px;">
+                    <div class="card-title">Pemicu Kreasi Konten Mandiri (AI Multi-Agent Studio)</div>
+                    <p style="font-size: 0.8rem; color: var(--text-muted); margin-top: 4px;">Pilih salah satu pilar di bawah untuk langsung menugaskan tim AI merancang naskah, slide grafis, dan Quality Control.</p>
+                    <div style="display: flex; flex-wrap: wrap; gap: 12px; margin-top: 14px;">
+                        <button class="btn btn-primary" onclick="triggerStudio('pita_waktu')">⏳ Generate Pita Waktu</button>
+                        <button class="btn btn-primary" style="background:linear-gradient(135deg,#6366F1,#4F46E5);" onclick="triggerStudio('pita_cerita')">📖 Generate Pita Cerita (Karusel)</button>
+                        <button class="btn btn-primary" style="background:linear-gradient(135deg,#EC4899,#DB2777);" onclick="triggerStudio('pita_transformasi')">✨ Generate Pita Transformasi (Reels)</button>
+                        <button class="btn btn-primary" style="background:linear-gradient(135deg,#8B5CF6,#7C3AED);" onclick="triggerStudio('pita_refleksi')">🪞 Generate Pita Refleksi</button>
+                    </div>
+                </div>
+
+                <!-- Produced Assets Gallery -->
+                <div class="card" style="margin-bottom: 20px;">
                     <div class="card-title" style="display: flex; justify-content: space-between; align-items: center;">
-                        <span>Produced Assets (Media & Naskah)</span>
-                        <button class="btn btn-outline" style="font-size:0.75rem; padding:4px 10px;" onclick="fetchContent()">🔄 Refresh Assets</button>
+                        <span>🖼️ Galeri Aset & Naskah Terproduksi</span>
+                        <button class="btn btn-outline" style="font-size:0.75rem; padding:4px 10px;" onclick="fetchContent()">🔄 Refresh Galeri</button>
                     </div>
                     <div id="content-grid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 16px; margin-top: 16px;"></div>
                 </div>
-            </div>
 
-            <!-- 3. QUEUE TAB -->
-            <div id="tab-queue" class="tab-pane">
-                <div class="card"><div class="card-title">Autonomous Execution Queue</div><table><thead><tr><th>Job ID</th><th>Pilar</th><th>Status</th><th>Type</th><th>Created</th><th>Error</th></tr></thead><tbody id="queue-tbody"></tbody></table></div>
-            </div>
+                <!-- Queue & Receipts Grid -->
+                <div class="grid-2">
+                    <div class="card">
+                        <div class="card-title" style="display:flex; justify-content:space-between; align-items:center;">
+                            <span>⏳ Antrean Pemrosesan (Job Queue)</span>
+                            <button class="btn btn-outline" style="font-size:0.72rem; padding:3px 8px;" onclick="fetchQueue()">🔄</button>
+                        </div>
+                        <table><thead><tr><th>Job ID</th><th>Pilar</th><th>Status</th><th>Dibuat</th></tr></thead><tbody id="queue-tbody"></tbody></table>
+                    </div>
 
-            <!-- 4. PUBLISHING RECEIPTS TAB -->
-            <div id="tab-receipts" class="tab-pane">
-                <div class="card"><div class="card-title">Audit Publishing Receipts (Transparansi Penuh)</div><table><thead><tr><th>Receipt ID</th><th>Content ID</th><th>Platform</th><th>Status</th><th>Mode</th><th>Verified</th><th>Post Link</th></tr></thead><tbody id="receipts-tbody"></tbody></table></div>
-            </div>
-
-            <!-- 5. PLATFORMS TAB -->
-            <div id="tab-platforms" class="tab-pane">
-                <div class="grid-3" style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px;">
-                    <div class="card"><div class="card-title">Facebook Fanspage</div><p style="font-size: 0.85rem; color: var(--text-muted);">Handle: <b>@Pitamediaid</b></p><p style="margin-top: 8px;">Status: <b style="color: var(--accent-emerald);">CONNECTED</b></p></div>
-                    <div class="card"><div class="card-title">Instagram Business</div><p style="font-size: 0.85rem; color: var(--text-muted);">Reels & Carousels (4:5 / 9:16)</p><p style="margin-top: 8px;">Status: <b style="color: var(--accent-emerald);">CONNECTED</b></p></div>
-                    <div class="card"><div class="card-title">Threads API</div><p style="font-size: 0.85rem; color: var(--text-muted);">Short-form Threads (&lt; 500 chars)</p><p style="margin-top: 8px;">Status: <b style="color: var(--accent-emerald);">CONNECTED</b></p></div>
+                    <div class="card">
+                        <div class="card-title" style="display:flex; justify-content:space-between; align-items:center;">
+                            <span>📜 Tanda Terima Publikasi (Publishing Receipts)</span>
+                            <button class="btn btn-outline" style="font-size:0.72rem; padding:3px 8px;" onclick="fetchReceipts()">🔄</button>
+                        </div>
+                        <table><thead><tr><th>Platform</th><th>Status</th><th>Mode</th><th>Tautan Post</th></tr></thead><tbody id="receipts-tbody"></tbody></table>
+                    </div>
                 </div>
             </div>
 
-            <!-- 6 & 7. UNIFIED AI PROVIDERS & CREDENTIALS TAB -->
+            <!-- 3. KONEKSI AI & AKUN MEDSOS (CREDENTIALS) -->
             <div id="tab-credentials" class="tab-pane">
+                <div class="menu-guide-card">
+                    <div>
+                        <div class="menu-guide-title">⚡ Koneksi AI, Akun Medsos & Bot Telegram</div>
+                        <div class="menu-guide-desc">Pusat pengaturan kunci akses (API Key) dan integrasi akun media sosial. Mengatur koneksi Google Gemini (Utama & Cadangan Auto-Failover), Fanspage Facebook, Instagram Business, Threads, dan Bot Telegram dalam satu tampilan terpadu.</div>
+                    </div>
+                    <div class="menu-guide-tip">
+                        💡 <b>Panduan:</b> Uji koneksi dengan tombol '🔍 Test', lalu klik '💾 Simpan Semua Kredensial'.
+                    </div>
+                </div>
+
                 <div class="card" style="margin-bottom: 24px;">
                     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; border-bottom: 1px solid var(--border); padding-bottom: 14px;">
                         <div>
-                            <div class="card-title" style="margin-bottom: 4px; font-size: 1.15rem; color: #60A5FA; display:flex; align-items:center; gap:8px;">
-                                ⚡ AI Providers, Kredensial & Status Mesin
-                            </div>
-                            <p style="font-size: 0.82rem; color: var(--text-muted); margin-bottom: 0;">Satu pusat terpadu untuk monitoring status mesin AI (Tier 1 & Tier 2), input API Key, Token Fanspage Meta, dan Bot Telegram. Seluruh perubahan langsung tersimpan ke <code>.env</code> dan tersinkronisasi otomatis.</p>
+                            <div class="card-title" style="margin-bottom: 4px; font-size: 1.05rem; color: #60A5FA;">🔐 Manajemen Kredensial & Kunci Akses (.env)</div>
+                            <p style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 0;">Perubahan langsung tersimpan ke file <code>.env</code> dan dienkripsi ke Windows Vault tanpa perlu mengulang input.</p>
                         </div>
                         <div style="display: flex; gap: 10px;">
                             <button class="btn btn-outline" onclick="fetchEnvConfig(true);" style="font-size: 0.85rem;">🔄 Refresh Data</button>
@@ -752,7 +811,7 @@ async def serve_dashboard(_: bool = Depends(verify_dashboard_access)):
                         <div style="background: rgba(255,255,255,0.02); border: 1px solid var(--border); border-radius: 8px; padding: 16px;">
                             <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; border-bottom: 1px solid rgba(255,255,255,0.06); padding-bottom: 10px;">
                                 <div style="font-weight: 700; font-size: 0.92rem; color: #60A5FA; display:flex; align-items:center; gap:6px;">
-                                    🤖 AI Engines & Multi-Tier
+                                    🤖 Mesin AI & Multi-Tier
                                 </div>
                                 <button class="btn btn-outline" style="font-size: 0.72rem; padding: 4px 8px;" onclick="showAddProviderModal()">+ Add Provider</button>
                             </div>
@@ -827,7 +886,7 @@ async def serve_dashboard(_: bool = Depends(verify_dashboard_access)):
                         <!-- Panel 2: Meta / Social Media Platforms -->
                         <div style="background: rgba(255,255,255,0.02); border: 1px solid var(--border); border-radius: 8px; padding: 16px;">
                             <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px;">
-                                <div style="font-weight: 700; font-size: 0.9rem; color: #10B981;">📱 Meta & Social Platforms</div>
+                                <div style="font-weight: 700; font-size: 0.9rem; color: #10B981;">📱 Akun Media Sosial (Meta)</div>
                                 <span class="brand-badge" style="border-color: rgba(16,185,129,0.3); color: #10B981;">Publishing</span>
                             </div>
 
@@ -933,27 +992,22 @@ async def serve_dashboard(_: bool = Depends(verify_dashboard_access)):
                 </div>
             </div>
 
-            <!-- 8. A/B EXPERIMENTS TAB -->
-            <div id="tab-ab_testing" class="tab-pane">
-                <div class="card"><div class="card-title">A/B Creative Experiments</div><table><thead><tr><th>Experiment ID</th><th>Type</th><th>Hypothesis</th><th>Status</th><th>Winner</th><th>Action</th></tr></thead><tbody id="experiments-tbody"></tbody></table></div>
-            </div>
+            <!-- 4. KUALITAS, MUSIK & EKSPERIMEN (QC + LEARNING + MUSIC + AB_TESTING) -->
+            <div id="tab-quality" class="tab-pane">
+                <div class="menu-guide-card">
+                    <div>
+                        <div class="menu-guide-title">🛡️ Pusat Kualitas Konten, Musik & Eksperimen AI</div>
+                        <div class="menu-guide-desc">Pusat kendali standar mutu konten dan pembelajaran performa. Mengawasi penilaian Quality Control (QC & Hard Safety Gate), pustaka musik berlisensi aman (8 Suasana Emosi), uji variasi kreatif (A/B Testing), dan adaptasi algoritma otonom (Learning Center).</div>
+                    </div>
+                    <div class="menu-guide-tip">
+                        💡 <b>Otonomi:</b> Anda dapat menyesuaikan level otonomi AI dari OBSERVE hingga CONTROLLED AUTO.
+                    </div>
+                </div>
 
-            <!-- 9. MUSIC & MOOD ENGINE TAB -->
-            <div id="tab-music" class="tab-pane">
-                <div class="card"><div class="card-title">Copyright-Safe Music Library (8 Emotional Moods)</div><table><thead><tr><th>Track ID</th><th>Title</th><th>Artist</th><th>Mood</th><th>BPM</th><th>License</th></tr></thead><tbody id="music-tbody"></tbody></table></div>
-            </div>
-
-            <!-- 10. QC TAB -->
-            <div id="tab-qc" class="tab-pane">
-                <div class="card"><div class="card-title">Quality Gate Audit Logs</div><table><thead><tr><th>Content</th><th>Pilar</th><th>Iteration</th><th>Score</th><th>Verdict</th><th>Feedback</th></tr></thead><tbody id="qc-tbody"></tbody></table></div>
-            </div>
-
-            <!-- 10b. LEARNING CENTER TAB -->
-            <div id="tab-learning" class="tab-pane">
-                <!-- Maturity & Autonomy Controller Header Grid -->
+                <!-- Learning Maturity & Autonomy Controller Header Grid -->
                 <div class="grid-2">
                     <div class="card">
-                        <div class="card-title">🧠 Learning Maturity Score</div>
+                        <div class="card-title">🧠 Learning Maturity Score (Skor Kematangan AI)</div>
                         <div style="display: flex; align-items: baseline; gap: 12px; margin: 10px 0;">
                             <span id="learn-maturity-score" style="font-size: 2.4rem; font-weight: 800; font-family: 'Plus Jakarta Sans'; color: #60A5FA;">--/100</span>
                             <span id="learn-maturity-stage" class="brand-badge" style="font-size: 0.8rem; padding: 4px 10px;">INSUFFICIENT_DATA</span>
@@ -971,10 +1025,10 @@ async def serve_dashboard(_: bool = Depends(verify_dashboard_access)):
                     </div>
 
                     <div class="card">
-                        <div class="card-title">🎮 Autonomy Controller & Governance</div>
+                        <div class="card-title">🎮 Pengatur Tingkat Otonomi AI (Autonomy Controller)</div>
                         <div style="display: flex; align-items: center; justify-content: space-between; margin: 10px 0;">
                             <div>
-                                <div style="font-size: 0.75rem; color: var(--text-muted);">Current Autonomy Level:</div>
+                                <div style="font-size: 0.75rem; color: var(--text-muted);">Tingkat Otonomi Saat Ini:</div>
                                 <span id="learn-autonomy-badge" style="font-size: 1.1rem; font-weight: 800; color: #10B981; letter-spacing: 0.05em;">OBSERVE</span>
                             </div>
                             <span id="learn-pause-badge" class="brand-badge" style="font-size: 0.75rem;">● LEARNING ACTIVE</span>
@@ -994,93 +1048,106 @@ async def serve_dashboard(_: bool = Depends(verify_dashboard_access)):
                     </div>
                 </div>
 
-                <!-- Maturity Recommendation Alert Box (if present) -->
-                <div id="learn-rec-box" class="card" style="display:none; margin-bottom: 20px; border-color: rgba(59, 130, 246, 0.5); background: rgba(59, 130, 246, 0.05);">
-                    <div style="display:flex; justify-content:space-between; align-items:center;">
-                        <div>
-                            <div style="font-weight:700; color:#60A5FA; font-size:0.9rem;">💡 Rekomendasi Kenaikan Level Otonomi</div>
-                            <div id="learn-rec-text" style="font-size:0.83rem; color:var(--text-main); margin-top:4px;">-</div>
-                        </div>
-                        <div style="display:flex; gap:8px;">
-                            <button class="btn btn-primary" style="font-size:0.75rem;" onclick="approveRecommendation()">✅ Setujui</button>
-                            <button class="btn btn-outline" style="font-size:0.75rem;" onclick="document.getElementById('learn-rec-box').style.display='none'">Abaikan</button>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Active Strategy Version & Pilar Distribution -->
-                <div class="card" style="margin-bottom: 20px;">
-                    <div class="card-title">📈 Strategi Aktif & Bobot Distribusi Pilar</div>
-                    <div id="learn-strategy-name" style="font-weight:700; font-size:0.95rem; margin:6px 0;">Strategy v1 - Baseline Balanced Distribution</div>
-                    <div id="learn-strategy-pilar-bars" style="display:grid; grid-template-columns:repeat(4, 1fr); gap:12px; margin-top:10px;">
-                        <!-- Pillar Bars dynamically populated -->
-                    </div>
-                </div>
-
-                <!-- Top Distilled Knowledge Items -->
-                <div class="card" style="margin-bottom: 20px;">
-                    <div class="card-title">📚 Knowledge Base — Sari Pengetahuan Terdistilasi</div>
-                    <table>
-                        <thead>
-                            <tr><th>Kategori</th><th>Judul Pola</th><th>Insight & Aturan</th><th>Sample</th><th>Confidence</th><th>Status</th></tr>
-                        </thead>
-                        <tbody id="learn-knowledge-tbody">
-                            <tr><td colspan="6" style="text-align:center; color:var(--text-muted);">Memuat Knowledge Base...</td></tr>
-                        </tbody>
-                    </table>
-                </div>
-
-                <!-- Recent Automatic Postmortems & Audience Ideas -->
+                <!-- Grid QC & A/B Experiments -->
                 <div class="grid-2">
                     <div class="card">
-                        <div class="card-title">🔍 Evaluasi Postmortem Otomatis</div>
-                        <div id="learn-postmortems-list" style="margin-top:10px; font-size:0.82rem;">
-                            Memuat postmortem...
+                        <div class="card-title" style="display:flex; justify-content:space-between; align-items:center;">
+                            <span>🛡️ Audit Kelayakan Mutu (QC & Safety Gate)</span>
+                            <button class="btn btn-outline" style="font-size:0.72rem; padding:3px 8px;" onclick="fetchQC()">🔄</button>
                         </div>
+                        <table><thead><tr><th>Konten</th><th>Pilar</th><th>Skor</th><th>Verdict</th></tr></thead><tbody id="qc-tbody"></tbody></table>
                     </div>
 
                     <div class="card">
-                        <div class="card-title">💬 Ide & Feedback Audiens Terkurasi</div>
-                        <div id="learn-audience-list" style="margin-top:10px; font-size:0.82rem;">
-                            Memuat ide audiens...
+                        <div class="card-title" style="display:flex; justify-content:space-between; align-items:center;">
+                            <span>🧪 Eksperimen Kreatif (A/B Testing)</span>
+                            <button class="btn btn-outline" style="font-size:0.72rem; padding:3px 8px;" onclick="fetchExperiments()">🔄</button>
+                        </div>
+                        <table><thead><tr><th>ID</th><th>Hipotesis</th><th>Status</th><th>Pemenang</th></tr></thead><tbody id="experiments-tbody"></tbody></table>
+                    </div>
+                </div>
+
+                <!-- Grid Music & Heatmap -->
+                <div class="grid-2">
+                    <div class="card">
+                        <div class="card-title">🎵 Pustaka Musik Bebas Hak Cipta (8 Moods)</div>
+                        <table><thead><tr><th>Judul Track</th><th>Artis</th><th>Mood Emosi</th><th>BPM</th><th>Lisensi</th></tr></thead><tbody id="music-tbody"></tbody></table>
+                    </div>
+
+                    <div class="card">
+                        <div class="card-title">📈 Waktu Tayang Optimal (Publishing Heatmap WIB)</div>
+                        <div style="margin-top: 14px; font-size:0.84rem; line-height: 1.6;">
+                            <p style="margin-bottom:8px;">⏰ <b style="color:#60A5FA;">06:30 - 08:00 WIB:</b> Morning Commute / Mindset Hook & Inspirasi Pagi</p>
+                            <p style="margin-bottom:8px;">⏰ <b style="color:#34D399;">12:00 - 13:00 WIB:</b> Istirahat Siang / Storytelling Kasual & Refleksi Singkat</p>
+                            <p>⏰ <b style="color:#F59E0B;">19:00 - 21:30 WIB:</b> Prime Time / Narasi Emosional, Carousel Filosofis & Reels</p>
                         </div>
                     </div>
                 </div>
             </div>
 
-            <!-- 11. STRATEGY TAB -->
-            <div id="tab-strategy" class="tab-pane">
-                <div class="card"><div class="card-title">Optimal Publishing Heatmap (WIB / UTC+7)</div><div style="margin-top: 12px;"><p>⏰ <b>06:30 - 08:00 WIB:</b> Morning Commute / Mindset Hook</p><p>⏰ <b>12:00 - 13:00 WIB:</b> Lunch Break / Casual Storytelling</p><p>⏰ <b>19:00 - 21:30 WIB:</b> Prime Time Relaxation / Emotional Long-form</p></div></div>
-            </div>
+            <!-- 5. KESEHATAN & PENGATURAN SISTEM (SYSTEM HEALTH + COSTS + STORAGE + REPORTS + LOGS + SETTINGS) -->
+            <div id="tab-system" class="tab-pane">
+                <div class="menu-guide-card">
+                    <div>
+                        <div class="menu-guide-title">⚙️ Kesehatan Server, Biaya & Pengaturan Sistem</div>
+                        <div class="menu-guide-desc">Pusat diagnostik kesehatan layanan, pemantauan batas anggaran biaya (Cost Governor), pembersihan penyimpanan disk (Storage Guard), laporan eksekutif berkala, log terminal langsung, dan riwayat konfigurasi.</div>
+                    </div>
+                    <div class="menu-guide-tip">
+                        💡 <b>Pemeliharaan:</b> Klik 'Run Cleanup' untuk menghapus berkas sementara dan menjaga performa disk.
+                    </div>
+                </div>
 
-            <!-- 12. COSTS TAB -->
-            <div id="tab-costs" class="tab-pane">
-                <div class="card"><div class="card-title">Cost Governance & API Token Consumption</div><p>Daily Cap: <b>$10.00 USD</b></p><div id="costs-container" style="margin-top: 12px;"></div></div>
-            </div>
+                <!-- Grid Health, Cost, Storage -->
+                <div style="display:grid; grid-template-columns: repeat(3, 1fr); gap: 18px; margin-bottom: 20px;">
+                    <div class="card">
+                        <div class="card-title" style="display:flex; justify-content:space-between; align-items:center;">
+                            <span>❤️ Diagnostik Server</span>
+                            <button class="btn btn-outline" style="font-size:0.72rem; padding:3px 8px;" onclick="fetchHealth()">🔄</button>
+                        </div>
+                        <table><thead><tr><th>Komponen</th><th>Status</th></tr></thead><tbody id="health-tbody"></tbody></table>
+                    </div>
 
-            <!-- 13. STORAGE GUARD TAB -->
-            <div id="tab-storage" class="tab-pane">
-                <div class="card"><div class="card-title">Storage Guard & Disk Health</div><div id="disk-info" style="margin: 12px 0;">Loading...</div><button class="btn btn-outline" onclick="cleanDisk()">🧹 Run Temporary Storage Cleanup</button></div>
-            </div>
+                    <div class="card">
+                        <div class="card-title">💰 Tata Kelola Biaya AI</div>
+                        <p style="font-size:0.8rem; color:var(--text-muted);">Batas Anggaran: <b style="color:#F59E0B;">$10.00 USD / hari</b></p>
+                        <div id="costs-container" style="margin-top: 12px; font-size:0.85rem;"></div>
+                    </div>
 
-            <!-- 14. HEALTH TAB -->
-            <div id="tab-health" class="tab-pane">
-                <div class="card"><div class="card-title">System Self-Check & Token Health</div><table><thead><tr><th>Component</th><th>Status</th><th>Message</th></tr></thead><tbody id="health-tbody"></tbody></table></div>
-            </div>
+                    <div class="card">
+                        <div class="card-title">💾 Pemeliharaan Disk</div>
+                        <div id="disk-info" style="margin: 12px 0; font-size:0.85rem;">Memuat info disk...</div>
+                        <button class="btn btn-outline" style="font-size:0.75rem;" onclick="cleanDisk()">🧹 Run Temporary Storage Cleanup</button>
+                    </div>
+                </div>
 
-            <!-- 15. REPORTS TAB -->
-            <div id="tab-reports" class="tab-pane">
-                <div class="card" style="margin-bottom: 20px;"><div class="card-title">Executive Reports</div><div style="display: flex; gap: 12px; margin-top: 12px;"><button class="btn btn-primary" onclick="loadReport('daily')">Generate Daily Digest</button><button class="btn btn-outline" onclick="loadReport('weekly')">Generate Weekly Executive Review</button></div></div><div class="card"><pre id="report-output" style="color: var(--text-muted); font-size: 0.85rem;">Pilih laporan di atas...</pre></div>
-            </div>
+                <!-- Executive Reports & Settings -->
+                <div class="grid-2">
+                    <div class="card">
+                        <div class="card-title">📑 Laporan Ringkasan Eksekutif</div>
+                        <div style="display: flex; gap: 10px; margin: 12px 0;">
+                            <button class="btn btn-primary" style="font-size:0.75rem;" onclick="loadReport('daily')">Generate Daily Digest</button>
+                            <button class="btn btn-outline" style="font-size:0.75rem;" onclick="loadReport('weekly')">Weekly Executive Review</button>
+                        </div>
+                        <pre id="report-output" style="color: var(--text-muted); font-size: 0.8rem; background: rgba(0,0,0,0.3); padding: 12px; border-radius: 8px; max-height: 180px; overflow-y: auto;">Pilih laporan di atas untuk melihat ikhtisar...</pre>
+                    </div>
 
-            <!-- 16. LOGS TAB -->
-            <div id="tab-logs" class="tab-pane">
-                <div class="card"><div class="card-title">Live System Logs</div><pre id="terminal-logs" style="background: #000; color: #10B981; padding: 16px; border-radius: 8px; font-size: 0.8rem; height: 500px; overflow-y: auto;"></pre></div>
-            </div>
+                    <div class="card">
+                        <div class="card-title" style="display:flex; justify-content:space-between; align-items:center;">
+                            <span>⚙️ Riwayat Versi Konfigurasi</span>
+                            <button class="btn btn-outline" style="font-size:0.72rem; padding:3px 8px;" onclick="fetchVersions()">🔄</button>
+                        </div>
+                        <table><thead><tr><th>Versi</th><th>Nama</th><th>Diubah Oleh</th><th>Waktu</th></tr></thead><tbody id="versions-tbody"></tbody></table>
+                    </div>
+                </div>
 
-            <!-- 17. SETTINGS TAB -->
-            <div id="tab-settings" class="tab-pane">
-                <div class="card"><div class="card-title">Config Snapshot History</div><table><thead><tr><th>Version ID</th><th>Config Name</th><th>Changed By</th><th>Reason</th><th>Timestamp</th></tr></thead><tbody id="versions-tbody"></tbody></table>                </div>
+                <!-- Live System Logs -->
+                <div class="card" style="margin-top: 20px;">
+                    <div class="card-title" style="display:flex; justify-content:space-between; align-items:center;">
+                        <span>💻 Log Terminal Sistem Langsung</span>
+                        <button class="btn btn-outline" style="font-size:0.75rem; padding:4px 10px;" onclick="fetchLogs()">🔄 Refresh Logs</button>
+                    </div>
+                    <pre id="terminal-logs" style="background: #000; color: #10B981; padding: 16px; border-radius: 8px; font-size: 0.8rem; height: 350px; overflow-y: auto; margin-top: 10px;"></pre>
+                </div>
             </div>
         </div>
     </div>
