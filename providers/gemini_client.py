@@ -34,20 +34,49 @@ T = TypeVar("T", bound=BaseModel)
 
 class GeminiClient:
     def __init__(self, api_key: Optional[str] = None):
-        self.api_key = api_key or settings.GEMINI_API_KEY
-        self.client = None
+        self.api_keys = []
+        if api_key:
+            self.api_keys = [api_key]
+        else:
+            k1 = settings.GEMINI_API_KEY
+            k2 = getattr(settings, "GEMINI_API_KEY_2", "")
+            for k in [k1, k2]:
+                if k and k != "your_gemini_api_key_here" and k not in self.api_keys:
+                    self.api_keys.append(k)
+        
+        self.current_key_idx = 0
         self.rate_limiter = gemini_rate_limiter
-        if self.api_key:
-            if GENAI_NEW_SDK:
-                try:
-                    self.client = genai.Client(api_key=self.api_key)
-                except Exception:
-                    self.client = None
-            else:
-                genai.configure(api_key=self.api_key)
+        self.client = None
+        self._init_client()
+
+    def _init_client(self):
+        if not self.api_keys:
+            self.client = None
+            return
+        active_key = self.api_keys[self.current_key_idx]
+        if GENAI_NEW_SDK:
+            try:
+                self.client = genai.Client(api_key=active_key)
+            except Exception:
+                self.client = None
+        else:
+            genai.configure(api_key=active_key)
+
+    def rotate_key(self) -> bool:
+        """Rotates to next available Gemini API key if multiple are configured."""
+        if len(self.api_keys) > 1:
+            self.current_key_idx = (self.current_key_idx + 1) % len(self.api_keys)
+            logger.info(f"Mengalihkan otomatis ke Gemini API Key #{self.current_key_idx + 1}...")
+            self._init_client()
+            return True
+        return False
+
+    @property
+    def api_key(self) -> str:
+        return self.api_keys[self.current_key_idx] if self.api_keys else ""
 
     def is_configured(self) -> bool:
-        return bool(self.api_key and self.api_key != "your_gemini_api_key_here")
+        return bool(self.api_keys and any(k != "your_gemini_api_key_here" for k in self.api_keys))
 
     async def generate_text(
         self,
@@ -116,6 +145,12 @@ class GeminiClient:
 
                     # Jika 429 RESOURCE_EXHAUSTED:
                     if "429" in err_msg or "RESOURCE_EXHAUSTED" in err_msg or "quota" in err_msg.lower():
+                        # Jika ada API Key cadangan, rotasi ke key berikutnya terlebih dahulu
+                        if self.rotate_key() and attempt < max_retries:
+                            attempt += 1
+                            await asyncio.sleep(1.0)
+                            continue
+
                         # Jika kuota harian model tersebut habis (PerDay / limit: 20), beralih ke model alternatif
                         if "perday" in err_msg.lower() or "limit: 20" in err_msg:
                             pool = ["gemini-3.6-flash", "gemini-flash-latest", "gemini-flash-lite-latest", "gemini-pro-latest"]

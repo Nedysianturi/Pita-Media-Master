@@ -93,6 +93,7 @@ class CentralCredentialManager:
         env_dict = self.read_env_file()
         mappings = [
             ("gemini_api_key", env_dict.get("GEMINI_API_KEY") or settings.GEMINI_API_KEY),
+            ("gemini_api_key_2", env_dict.get("GEMINI_API_KEY_2") or getattr(settings, "GEMINI_API_KEY_2", "")),
             ("xai_api_key", env_dict.get("XAI_API_KEY") or os.getenv("XAI_API_KEY", "")),
             ("fb_page_access_token", env_dict.get("FB_PAGE_ACCESS_TOKEN") or settings.FB_PAGE_ACCESS_TOKEN),
             ("fb_page_id", env_dict.get("FB_PAGE_ID") or settings.FB_PAGE_ID),
@@ -205,11 +206,19 @@ class CentralCredentialManager:
         service_definitions = [
             {
                 "service_id": "gemini",
-                "display_name": "Google / Gemini AI",
+                "display_name": "Google / Gemini AI (Utama)",
                 "primary_key": "api_key",
                 "env_fallback": "GEMINI_API_KEY",
                 "category": "AI Provider",
-                "description": "API Key untuk Gemini 2.5 Flash / Pro, Veo, dan Imagen 3"
+                "description": "API Key Utama untuk Gemini Flash / Pro, Veo, dan Imagen 3"
+            },
+            {
+                "service_id": "gemini_2",
+                "display_name": "Google / Gemini AI (Cadangan / Failover)",
+                "primary_key": "api_key",
+                "env_fallback": "GEMINI_API_KEY_2",
+                "category": "AI Provider",
+                "description": "API Key Cadangan jika kuota API Key Utama habis / 429"
             },
             {
                 "service_id": "xai",

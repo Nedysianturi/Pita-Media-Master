@@ -768,7 +768,7 @@ async def serve_dashboard(_: bool = Depends(verify_dashboard_access)):
                             <!-- GEMINI_API_KEY -->
                             <div class="form-group">
                                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
-                                    <label class="form-label" style="margin-bottom: 0;">GEMINI_API_KEY <span style="color:var(--accent-rose);">*</span></label>
+                                    <label class="form-label" style="margin-bottom: 0;">GEMINI_API_KEY (Utama) <span style="color:var(--accent-rose);">*</span></label>
                                     <span id="status-gemini" style="font-size: 0.72rem; font-weight: 600; color: var(--text-muted);">● Menunggu Uji</span>
                                 </div>
                                 <div style="position:relative; display: flex; gap: 6px;">
@@ -779,6 +779,22 @@ async def serve_dashboard(_: bool = Depends(verify_dashboard_access)):
                                     <button class="btn btn-outline" style="font-size: 0.75rem; padding: 6px 10px; white-space: nowrap;" onclick="testSingleCred('gemini', 'env-gemini-key', 'status-gemini')">🔍 Test</button>
                                 </div>
                                 <small style="font-size: 0.72rem; color: var(--text-muted);">Model: Gemini 2.5 Flash, Imagen 3, Veo</small>
+                            </div>
+
+                            <!-- GEMINI_API_KEY_2 (Cadangan / Auto-Failover) -->
+                            <div class="form-group" style="margin-top: 14px;">
+                                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+                                    <label class="form-label" style="margin-bottom: 0;">GEMINI_API_KEY_2 (Cadangan / Failover)</label>
+                                    <span id="status-gemini-2" style="font-size: 0.72rem; font-weight: 600; color: var(--text-muted);">● Belum Diatur</span>
+                                </div>
+                                <div style="position:relative; display: flex; gap: 6px;">
+                                    <div style="position:relative; flex: 1;">
+                                        <input type="password" id="env-gemini-key-2" class="form-control" placeholder="AIzaSy... (Key Cadangan)" style="padding-right: 36px; font-size: 0.83rem;">
+                                        <button type="button" onclick="toggleInputVisibility('env-gemini-key-2')" style="position:absolute; right:8px; top:50%; transform:translateY(-50%); background:none; border:none; color:var(--text-muted); cursor:pointer;">👁️</button>
+                                    </div>
+                                    <button class="btn btn-outline" style="font-size: 0.75rem; padding: 6px 10px; white-space: nowrap;" onclick="testSingleCred('gemini_2', 'env-gemini-key-2', 'status-gemini-2')">🔍 Test</button>
+                                </div>
+                                <small style="font-size: 0.72rem; color: var(--text-muted);">Otomatis aktif jika kuota harian Key Utama habis (429)</small>
                             </div>
 
                             <!-- XAI_API_KEY -->
@@ -1445,6 +1461,7 @@ async def serve_dashboard(_: bool = Depends(verify_dashboard_access)):
                 const d = await res.json();
                 const env = d.env || {{}};
                 if (document.getElementById('env-gemini-key')) document.getElementById('env-gemini-key').value = env.GEMINI_API_KEY || '';
+                if (document.getElementById('env-gemini-key-2')) document.getElementById('env-gemini-key-2').value = env.GEMINI_API_KEY_2 || '';
                 if (document.getElementById('env-xai-key')) document.getElementById('env-xai-key').value = env.XAI_API_KEY || '';
                 if (document.getElementById('env-telegram-token')) document.getElementById('env-telegram-token').value = env.TELEGRAM_BOT_TOKEN || '';
                 if (document.getElementById('env-telegram-admins')) document.getElementById('env-telegram-admins').value = env.TELEGRAM_ADMIN_IDS || '';
@@ -1465,6 +1482,7 @@ async def serve_dashboard(_: bool = Depends(verify_dashboard_access)):
                 }};
 
                 updateBadge(env.GEMINI_API_KEY, 'status-gemini');
+                updateBadge(env.GEMINI_API_KEY_2, 'status-gemini-2');
                 updateBadge(env.XAI_API_KEY, 'status-xai');
                 updateBadge(env.FB_PAGE_ACCESS_TOKEN, 'status-fb');
                 updateBadge(env.IG_ACCESS_TOKEN, 'status-ig');
@@ -1484,6 +1502,7 @@ async def serve_dashboard(_: bool = Depends(verify_dashboard_access)):
             showToast('Menyimpan perubahan langsung ke file .env...');
             const updates = {{
                 GEMINI_API_KEY: document.getElementById('env-gemini-key') ? document.getElementById('env-gemini-key').value.trim() : '',
+                GEMINI_API_KEY_2: document.getElementById('env-gemini-key-2') ? document.getElementById('env-gemini-key-2').value.trim() : '',
                 XAI_API_KEY: document.getElementById('env-xai-key') ? document.getElementById('env-xai-key').value.trim() : '',
                 TELEGRAM_BOT_TOKEN: document.getElementById('env-telegram-token') ? document.getElementById('env-telegram-token').value.trim() : '',
                 TELEGRAM_ADMIN_IDS: document.getElementById('env-telegram-admins') ? document.getElementById('env-telegram-admins').value.trim() : '',
