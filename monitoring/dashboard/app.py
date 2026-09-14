@@ -1353,10 +1353,10 @@ async def serve_dashboard(_: bool = Depends(verify_dashboard_access)):
             document.getElementById('providers-tbody').innerHTML = d.providers.map(p => `
                 <tr>
                     <td><code>${{p.provider_id}}</code></td>
-                    <td><b>${{p.name}}</b></td>
-                    <td><span class="brand-badge">${{p.tier}}</span></td>
-                    <td>${{p.capabilities.join(', ')}}</td>
-                    <td><span style="color:var(--accent-emerald);">● ACTIVE</span></td>
+                    <td><b>${{p.display_name || p.name || p.provider_id.toUpperCase()}}</b></td>
+                    <td><span class="brand-badge">${{p.tier || (p.priority === 1 ? 'PRIMARY (Tier 1)' : 'SECONDARY (Tier 2)')}}</span></td>
+                    <td>${{(p.capabilities || []).join(', ')}}</td>
+                    <td><span style="color:${{p.enabled ? 'var(--accent-emerald)' : 'var(--text-muted)'}};">● ${{p.enabled ? 'TERHUBUNG (ACTIVE)' : 'DISABLED'}}</span></td>
                 </tr>
             `).join('');
         }}

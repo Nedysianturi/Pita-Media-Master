@@ -86,9 +86,12 @@ class BaseAIProvider(ABC):
     def to_dict(self) -> Dict[str, Any]:
         """Serializes provider configuration safely (zero plain secrets)."""
         from core.security.secret_store import secret_store
+        tier_label = "PRIMARY (Tier 1)" if self.priority == 1 else ("SECONDARY (Tier 2)" if self.priority == 2 else "CUSTOM (Tier 3)")
         return {
             "provider_id": self.provider_id,
             "display_name": self.display_name,
+            "name": self.display_name,
+            "tier": tier_label,
             "masked_key": secret_store.mask_secret(self.api_key),
             "base_url": self.base_url,
             "default_model": self.default_model,
