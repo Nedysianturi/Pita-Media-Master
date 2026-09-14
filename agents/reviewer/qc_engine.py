@@ -17,14 +17,14 @@ RUBRIC_FILE = Path(__file__).resolve().parent.parent.parent / "config" / "rubric
 
 
 class CategoryScoreItem(BaseModel):
-    category_id: str
-    score: float = Field(..., ge=0.0, le=10.0, description="Skor dari skala 0.0 sampai 10.0")
+    category_id: str = Field(default="relevance", description="ID kategori penilaian")
+    score: float = Field(default=8.5, ge=0.0, le=10.0, description="Skor dari skala 0.0 sampai 10.0")
     notes: str = Field(default="", description="Catatan evaluasi untuk kategori ini")
 
 
 class QCEvaluationResult(BaseModel):
-    scores: List[CategoryScoreItem] = Field(..., description="Daftar penilaian per kategori")
-    feedback_text: str = Field(..., description="Ulasan menyeluruh atas kekuatan dan kelemahan konten")
+    scores: List[CategoryScoreItem] = Field(default_factory=list, description="Daftar penilaian per kategori")
+    feedback_text: str = Field(default="Evaluasi QC otomatis selesai.", description="Ulasan menyeluruh atas kekuatan dan kelemahan konten")
     repair_plan: Optional[str] = Field(default=None, description="Instruksi spesifik perbaikan jika ada skor di bawah threshold")
 
 

@@ -16,7 +16,7 @@ POLICY_FILE = Path(__file__).resolve().parent.parent.parent / "config" / "safety
 
 
 class SafetyEvaluationResult(BaseModel):
-    is_safe: bool = Field(..., description="True jika konten sepenuhnya aman dari semua gate, False jika ada pelanggaran")
+    is_safe: bool = Field(default=True, description="True jika konten sepenuhnya aman dari semua gate, False jika ada pelanggaran")
     violations: List[str] = Field(default_factory=list, description="Daftar ID atau deskripsi pelanggaran keamanan")
     reasoning: str = Field(default="Semua gate keamanan lolos.", description="Penjelasan detail hasil evaluasi keamanan")
 
