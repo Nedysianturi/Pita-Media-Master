@@ -26,11 +26,40 @@ class FacebookClient:
         self.access_token = access_token or settings.FB_PAGE_ACCESS_TOKEN
         self.api_version = api_version or settings.FB_API_VERSION or "v21.0"
         self.base_url = f"https://graph.facebook.com/{self.api_version}"
+        self._cached_page_token: Optional[str] = None
 
     @property
     def is_configured(self) -> bool:
         """Cek apakah konfigurasi Facebook Fanspage sudah terisi lengkap."""
         return bool(self.page_id and self.access_token and self.access_token != "your_facebook_page_access_token_here")
+
+    async def get_effective_page_token(self, client: httpx.AsyncClient) -> str:
+        """
+        Mendapatkan Page Access Token yang valid untuk Page ID target.
+        Jika token di .env adalah User Token, otomatis membaca /me/accounts untuk mendapatkan Page Token.
+        """
+        if self._cached_page_token:
+            return self._cached_page_token
+
+        if not self.access_token:
+            return ""
+
+        try:
+            url = f"{self.base_url}/me/accounts?access_token={self.access_token}"
+            res = await client.get(url, timeout=10.0)
+            if res.status_code == 200:
+                data = res.json()
+                for p in data.get("data", []):
+                    if str(p.get("id")) == str(self.page_id) and p.get("access_token"):
+                        self._cached_page_token = p.get("access_token")
+                        return self._cached_page_token
+                    # Jika tidak cocok spesifik tapi ada halaman pertama
+                    if not self._cached_page_token and p.get("access_token"):
+                        self._cached_page_token = p.get("access_token")
+        except Exception:
+            pass
+
+        return self.access_token
 
     async def publish_multi_photo_carousel(
         self,
@@ -50,6 +79,7 @@ class FacebookClient:
 
         uploaded_media_ids = []
         async with httpx.AsyncClient(timeout=60.0) as client:
+            token = await self.get_effective_page_token(client)
             # 1. Upload individual photos as unlisted
             for idx, img_path_str in enumerate(image_paths):
                 img_path = Path(img_path_str)
@@ -58,7 +88,7 @@ class FacebookClient:
 
                 url = f"{self.base_url}/{self.page_id}/photos"
                 data = {
-                    "access_token": self.access_token,
+                    "access_token": token,
                     "published": "false",
                     "temporary": "false",
                 }
@@ -82,7 +112,7 @@ class FacebookClient:
             # 2. Publish container post to Page Feed with attached media
             feed_url = f"{self.base_url}/{self.page_id}/feed"
             feed_data: Dict[str, Any] = {
-                "access_token": self.access_token,
+                "access_token": token,
                 "message": caption,
             }
             for i, media_id in enumerate(uploaded_media_ids):
@@ -133,14 +163,15 @@ class FacebookClient:
         if not v_path.exists():
             raise FileNotFoundError(f"File video tidak ditemukan: {video_path}")
 
-        url = f"{self.base_url}/{self.page_id}/videos"
-        data = {
-            "access_token": self.access_token,
-            "title": title,
-            "description": description,
-        }
-
         async with httpx.AsyncClient(timeout=180.0) as client:
+            token = await self.get_effective_page_token(client)
+            url = f"{self.base_url}/{self.page_id}/videos"
+            data = {
+                "access_token": token,
+                "title": title,
+                "description": description,
+            }
+
             with open(v_path, "rb") as f:
                 files = {"source": (v_path.name, f, "video/mp4")}
                 resp = await client.post(url, data=data, files=files)
@@ -187,14 +218,15 @@ class FacebookClient:
         if not img_path.exists():
             raise FileNotFoundError(f"File gambar tidak ditemukan: {image_path}")
 
-        url = f"{self.base_url}/{self.page_id}/photos"
-        data = {
-            "access_token": self.access_token,
-            "caption": caption,
-            "published": "true",
-        }
-
         async with httpx.AsyncClient(timeout=60.0) as client:
+            token = await self.get_effective_page_token(client)
+            url = f"{self.base_url}/{self.page_id}/photos"
+            data = {
+                "access_token": token,
+                "caption": caption,
+                "published": "true",
+            }
+
             with open(img_path, "rb") as f:
                 files = {"source": (img_path.name, f, "image/png")}
                 resp = await client.post(url, data=data, files=files)
