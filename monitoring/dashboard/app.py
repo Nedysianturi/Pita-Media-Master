@@ -121,6 +121,20 @@ async def execute_control_action(action: str, background_tasks: BackgroundTasks,
     control_bus.send_command(action, source="DASHBOARD")
     return {"success": True, "action": action, "timestamp": datetime.now(timezone.utc).isoformat()}
 
+# --- STUDIO TRIGGER API ---
+@app.post("/api/studio/trigger", response_class=JSONResponse)
+async def trigger_content_generation(payload: Dict[str, Any], background_tasks: BackgroundTasks, _: bool = Depends(verify_dashboard_access)):
+    pilar = payload.get("pilar", "pita_cerita")
+    from core.scheduler import content_orchestrator
+    job = await content_orchestrator.schedule_next_content_slot(pilar=pilar)
+    background_tasks.add_task(content_orchestrator.process_single_job, job.id)
+    return {
+        "success": True,
+        "job_id": job.id,
+        "pilar": pilar,
+        "message": f"Kreasi #{pilar} berhasil dijadwalkan (Job {job.id[:8]}). Sistem AI sedang merakit naskah & visual..."
+    }
+
 # --- CORE STATS & METRICS ---
 @app.get("/api/stats", response_class=JSONResponse)
 async def get_dashboard_stats(_: bool = Depends(verify_dashboard_access)):
@@ -679,14 +693,22 @@ async def serve_dashboard(_: bool = Depends(verify_dashboard_access)):
             <!-- 2. CONTENT STUDIO TAB -->
             <div id="tab-content" class="tab-pane">
                 <div class="card" style="margin-bottom: 20px;">
-                    <div class="card-title">Manual Content Trigger (Pita Waktu Studio)</div>
-                    <div style="display: flex; gap: 12px; margin-top: 12px;">
+                    <div class="card-title">Manual Content Trigger (AI Multi-Agent Studio)</div>
+                    <p style="font-size: 0.8rem; color: var(--text-muted); margin-top: 4px;">Picu pembuatan naskah, slide media, dan evaluasi Quality Control secara instan untuk pilar tertentu.</p>
+                    <div style="display: flex; flex-wrap: wrap; gap: 12px; margin-top: 14px;">
                         <button class="btn btn-primary" onclick="triggerStudio('pita_waktu')">⏳ Generate Pita Waktu</button>
                         <button class="btn btn-outline" onclick="triggerStudio('pita_cerita')">📖 Generate Pita Cerita (Carousel)</button>
                         <button class="btn btn-outline" onclick="triggerStudio('pita_transformasi')">✨ Generate Pita Transformasi (Reels)</button>
+                        <button class="btn btn-outline" onclick="triggerStudio('pita_refleksi')">🪞 Generate Pita Refleksi</button>
                     </div>
                 </div>
-                <div class="card"><div class="card-title">Produced Assets</div><div id="content-grid" style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-top: 12px;"></div></div>
+                <div class="card">
+                    <div class="card-title" style="display: flex; justify-content: space-between; align-items: center;">
+                        <span>Produced Assets (Media & Naskah)</span>
+                        <button class="btn btn-outline" style="font-size:0.75rem; padding:4px 10px;" onclick="fetchContent()">🔄 Refresh Assets</button>
+                    </div>
+                    <div id="content-grid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 16px; margin-top: 16px;"></div>
+                </div>
             </div>
 
             <!-- 3. QUEUE TAB -->
@@ -1585,15 +1607,46 @@ async def serve_dashboard(_: bool = Depends(verify_dashboard_access)):
         }}
 
         async function fetchContent() {{
-            const res = await fetch('/api/content');
-            const d = await res.json();
-            document.getElementById('content-grid').innerHTML = d.contents.map(c => `
-                <div class="card" style="padding:12px;">
-                    <img src="${{c.media_urls[0] || '/static/logo.png'}}" style="width:100%; height:140px; object-fit:cover; border-radius:6px; margin-bottom:8px;">
-                    <div style="font-weight:700; font-size:0.9rem;">${{c.title}}</div>
-                    <div style="color:var(--text-muted); font-size:0.75rem; margin-top:4px;">${{c.caption.slice(0, 80)}}...</div>
-                </div>
-            `).join('') || 'No contents produced yet.';
+            try {{
+                const res = await fetch('/api/content');
+                const d = await res.json();
+                const grid = document.getElementById('content-grid');
+                if (!grid) return;
+                
+                if (!d.contents || d.contents.length === 0) {{
+                    grid.innerHTML = '<div style="grid-column: 1/-1; text-align:center; padding: 36px; color: var(--text-muted);">Belum ada aset konten yang diproduksi. Tekan tombol pilar di atas untuk membuat konten sekarang.</div>';
+                    return;
+                }}
+
+                grid.innerHTML = d.contents.map(c => {{
+                    const previewUrl = (c.media_urls && c.media_urls.length > 0) ? c.media_urls[0] : '';
+                    const pilarName = c.pilar || 'pita_cerita';
+                    const icon = pilarName.includes('cerita') ? '📖' : (pilarName.includes('transformasi') ? '✨' : (pilarName.includes('refleksi') ? '🪞' : '⏳'));
+
+                    return `
+                    <div class="card" style="padding: 16px; display: flex; flex-direction: column; justify-content: space-between; border: 1px solid var(--border); border-radius: 12px; background: rgba(15, 23, 42, 0.65); transition: border-color 0.2s ease;">
+                        <div>
+                            <div style="width: 100%; height: 160px; border-radius: 10px; overflow: hidden; background: rgba(0,0,0,0.35); border: 1px solid rgba(255,255,255,0.06); display: flex; align-items: center; justify-content: center; position: relative; margin-bottom: 12px;">
+                                ${{previewUrl ? `<img src="${{previewUrl}}" style="width: 100%; height: 100%; object-fit: cover;" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">` : ''}}
+                                <div style="display: ${{previewUrl ? 'none' : 'flex'}}; flex-direction: column; align-items: center; justify-content: center; gap: 6px; color: var(--text-muted);">
+                                    <span style="font-size: 2.2rem;">${{icon}}</span>
+                                    <span style="font-size: 0.72rem; font-weight: 600;">#${{pilarName}}</span>
+                                </div>
+                                <span class="pilar-pill" style="position: absolute; top: 8px; left: 8px; background: rgba(15,23,42,0.85); backdrop-filter: blur(8px);">#${{pilarName}}</span>
+                            </div>
+                            <div style="font-weight: 700; font-size: 0.92rem; color: var(--text-main); line-height: 1.35; margin-bottom: 6px;">${{c.title}}</div>
+                            <div style="color: var(--text-muted); font-size: 0.76rem; line-height: 1.45; max-height: 48px; overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;">${{c.caption || '-'}}</div>
+                        </div>
+                        <div style="margin-top: 14px; padding-top: 10px; border-top: 1px solid rgba(255,255,255,0.05); display: flex; justify-content: space-between; align-items: center;">
+                            <span style="font-size: 0.72rem; color: var(--text-muted); font-family: monospace;"><code>${{c.id ? c.id.slice(0, 8) : ''}}</code></span>
+                            <span style="font-size: 0.75rem; color: var(--accent-emerald); font-weight:600;">● READY</span>
+                        </div>
+                    </div>
+                    `;
+                }}).join('');
+            }} catch (e) {{
+                console.error('Fetch content error:', e);
+            }}
         }}
 
         async function fetchQueue() {{
@@ -1782,7 +1835,27 @@ async def serve_dashboard(_: bool = Depends(verify_dashboard_access)):
         }}
 
         async function triggerStudio(pilar) {{
-            showToast('Triggering ' + pilar + '...');
+            showToast('🚀 Menginstruksikan AI Creator untuk membuat konten #' + pilar + '...');
+            try {{
+                const res = await fetch('/api/studio/trigger', {{
+                    method: 'POST',
+                    headers: {{ 'Content-Type': 'application/json' }},
+                    body: JSON.stringify({{ pilar: pilar }})
+                }});
+                const d = await res.json();
+                if (d.success) {{
+                    showToast('✅ ' + d.message);
+                    setTimeout(() => {{
+                        fetchContent();
+                        fetchQueue();
+                        pollStats();
+                    }}, 2000);
+                }} else {{
+                    showToast('Eror: ' + (d.detail || 'Gagal memicu studio'));
+                }}
+            }} catch (e) {{
+                showToast('Eror jaringan: ' + e.message);
+            }}
         }}
 
         pollStats();
