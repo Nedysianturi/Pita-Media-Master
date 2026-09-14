@@ -17,8 +17,8 @@ from config.settings import settings
 
 
 class StoryGenerationResult(BaseModel):
-    story_caption: str = Field(..., description="Cerita utuh dengan panjang 150 sampai 300 kata yang sarat makna dan emosi")
-    slide_prompts: List[str] = Field(..., description="Daftar 3 sampai 5 prompt gambar visual statis yang berkesinambungan")
+    story_caption: str = Field(default="", description="Cerita utuh dengan panjang 150 sampai 300 kata yang sarat makna dan emosi")
+    slide_prompts: List[str] = Field(default_factory=list, description="Daftar 3 sampai 5 prompt gambar visual statis yang berkesinambungan")
 
 
 class PitaCeritaCreator:
@@ -56,23 +56,31 @@ class PitaCeritaCreator:
         if not self.gemini.is_configured():
             story_res = self._get_mock_story(idea)
         else:
-            story_res = await self.gemini.generate_structured(
-                prompt=prompt_instruction,
-                schema=StoryGenerationResult,
-                system_instruction=system_instruction,
-                model=settings.GEMINI_PRO_MODEL,
-                db_session=db_session,
-                job_id=job_id,
-            )
+            try:
+                story_res = await self.gemini.generate_structured(
+                    prompt=prompt_instruction,
+                    schema=StoryGenerationResult,
+                    system_instruction=system_instruction,
+                    model=settings.GEMINI_PRO_MODEL,
+                    db_session=db_session,
+                    job_id=job_id,
+                )
+            except Exception as e:
+                logger.warning(f"Gagal generate cerita terstruktur ({e}). Menggunakan generator cerita lokal.")
+                story_res = self._get_mock_story(idea)
 
         # Pastikan jumlah slide 3-5 dengan fallback aman jika respon kosong
-        prompts = list(story_res.slide_prompts[:5]) if story_res.slide_prompts else []
-        if not prompts:
+        prompts = list(getattr(story_res, "slide_prompts", []) or [])
+        story_caption = getattr(story_res, "story_caption", "") or ""
+        
+        if not prompts or not story_caption:
             mock_s = self._get_mock_story(idea)
-            prompts = mock_s.slide_prompts
-            if not story_res.story_caption:
-                story_res.story_caption = mock_s.story_caption
-        elif len(prompts) < 3:
+            if not prompts:
+                prompts = mock_s.slide_prompts
+            if not story_caption:
+                story_caption = mock_s.story_caption
+
+        if len(prompts) < 3:
             prompts = prompts + [f"{prompts[0]} - Variasi detail sudut pandang lain"] * (3 - len(prompts))
 
         # Render 3-5 gambar statis via Imagen
