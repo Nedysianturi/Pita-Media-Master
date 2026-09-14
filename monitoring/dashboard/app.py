@@ -1396,27 +1396,30 @@ async def serve_dashboard(_: bool = Depends(verify_dashboard_access)):
             document.getElementById('prev-hash').innerText = (p.verification_hash || '-').slice(0, 24) + '...';
             document.getElementById('prev-plat-name').innerText = 'Platform: ' + (p.platform ? p.platform.toUpperCase() : 'FACEBOOK');
 
-            const imgEl = document.getElementById('prev-img');
-            const fallbackEl = document.getElementById('prev-fallback-icon');
-            if (p.preview_url) {{
-                imgEl.src = p.preview_url;
-                imgEl.style.display = 'block';
-                fallbackEl.style.display = 'none';
+            // Render all slides if carousel
+            const galleryRow = document.getElementById('prev-slides-row');
+            const galleryContainer = document.getElementById('prev-carousel-gallery');
+            if (p.media_urls && p.media_urls.length > 0) {{
+                galleryContainer.style.display = 'block';
+                galleryRow.innerHTML = p.media_urls.map((url, idx) => `
+                    <div style="width:64px; height:64px; border-radius:8px; overflow:hidden; border:1px solid var(--border); flex-shrink:0; cursor:pointer;" onclick="document.getElementById('prev-img').src='${{url}}'; document.getElementById('prev-img').style.display='block'; document.getElementById('prev-fallback-icon').style.display='none';" title="Slide ${{idx+1}}">
+                        <img src="${{url}}" style="width:100%; height:100%; object-fit:cover;">
+                    </div>
+                `).join('');
             }} else {{
-                imgEl.style.display = 'none';
-                fallbackEl.style.display = 'block';
-                fallbackEl.innerText = p.platform === 'facebook' ? '📘' : (p.platform === 'instagram' ? '📸' : '🧵');
+                galleryContainer.style.display = 'none';
             }}
 
-            const isSim = p.is_simulated || (p.post_url && (p.post_url.includes('.mock') || p.post_url.includes('dry_run')));
             document.getElementById('prev-sim-alert').style.display = isSim ? 'flex' : 'none';
 
             const liveBtn = document.getElementById('prev-live-btn');
             if (isSim) {{
                 liveBtn.innerText = '🚀 Beralih ke Mode PRODUCTION';
+                liveBtn.style.display = 'inline-flex';
                 liveBtn.onclick = () => {{ closePostPreview(); toggleMode(); }};
-            }} else if (p.post_url && p.post_url !== '#') {{
+            }} else if (p.post_url && p.post_url !== '#' && !isFailed) {{
                 liveBtn.innerText = '↗ Buka Post Facebook Asli';
+                liveBtn.style.display = 'inline-flex';
                 liveBtn.onclick = () => {{ window.open(p.post_url, '_blank'); }};
             }} else {{
                 liveBtn.style.display = 'none';
