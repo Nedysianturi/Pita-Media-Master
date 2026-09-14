@@ -139,35 +139,61 @@ Dari mana pun Anda berada, cukup kirimkan pesan ke Bot Telegram Anda:
 
 ---
 
-## 🧪 Menjalankan Rangkaian Pengujian (Test Suite)
+## 🧠 Pita Media Learning Intelligence System
 
-Untuk menjalankan seluruh 20+ unit & integration tests:
-```bash
-.venv\Scripts\pytest tests/ -v
-```
+Pita Media dilengkapi dengan **Learning Intelligence Engine** yang memungkinkan sistem belajar secara empiris dari performa nyata tanpa pernah meningkatkan wewenang tanpa kontrol manusia (*Never increase authority without control*).
 
-Untuk memeriksa keamanan token sebelum commit:
-```bash
-python tools/secret_scanner.py
-```
+### 🏛️ 4 Level Otonomi Sistem (Autonomy Levels)
+
+1. **LEVEL 1: `OBSERVE` (Default Awal Wajib)**:
+   - Sistem **hanya mengamati, mengumpulkan data telemetri, mencatat memori jangka panjang, dan mendistilasi pola**.
+   - Sistem dilarang mengubah strategi, jadwal, atau bobot pilar secara otomatis.
+2. **LEVEL 2: `RECOMMEND`**:
+   - Sistem menganalisis tren performa dan **menyajikan rekomendasi strategis** (perubahan alokasi pilar, formula hook, model AI terbaik) ke Admin.
+   - Keputusan eksekusi tetap menunggu persetujuan Admin.
+3. **LEVEL 3: `ASSISTED_AUTO`**:
+   - Sistem diberi wewenang melakukan penyesuaian minor dalam batas toleransi aman terkonfigurasi (memilih jam posting terbaik, variasi hook, menjalankan A/B test terkontrol).
+4. **LEVEL 4: `CONTROLLED_AUTO`**:
+   - Sistem mengoptimalkan strategi mandiri dalam batas toleransi ketat.
+
+> [!CAUTION]
+> **PROTECTED SETTINGS (Dilarang Diubah Mandiri oleh Sistem)**:
+> Learning Engine dilarang keras mengubah sendiri: API Keys/Tokens, Safety Gate thresholds, Hard Cost Limit, Windows Service Config, Database Security, Telegram Admin ID, status `APP_MODE` (DRY_RUN/PRODUCTION), dan source code inti.
 
 ---
 
-## 📦 Push ke GitHub Private Repository
+### 📊 Learning Maturity Score (0–100)
 
-1. Jalankan pemindaian rahasia untuk memastikan aman:
-   ```bash
-   python tools/secret_scanner.py
-   ```
-2. Inisialisasi git dan commit:
-   ```bash
-   git init
-   git add .
-   git commit -m "feat: inisialisasi sistem agen otonom Pita Media lengkap dengan 4 pilar, QC self-repair, dan Telegram C2"
-   ```
-3. Hubungkan ke repository GitHub privat Anda:
-   ```bash
-   git branch -M main
-   git remote add origin https://github.com/USERNAME/REPO_NAME.git
-   git push -u origin main
-   ```
+Skor kematangan sistem dihitung berdasarkan 6 pilar empiris:
+1. **Valid Posts Count** (0–20 poin)
+2. **Telemetry Snapshot Coverage** (0–20 poin)
+3. **Completed A/B Experiments** (0–15 poin)
+4. **Data Quality & Anomaly Cleanliness** (0–15 poin)
+5. **Prediction vs Reality Accuracy** (0–15 poin)
+6. **System Stability & Low Error Rate** (0–15 poin)
+
+**Tahapan Kematangan**:
+- `0–20` : **INSUFFICIENT_DATA**
+- `21–40` : **EARLY_LEARNING**
+- `41–60` : **DEVELOPING**
+- `61–80` : **MATURE**
+- `81–100` : **HIGH_CONFIDENCE**
+
+---
+
+### 🛡️ Proteksi Keamanan & Rollback
+
+- **Automatic Downgrade**: Jika error rate $\ge 25\%$, terdeteksi anomali tinggi, atau kegagalan QC berturut-turut, level otonomi otomatis diturunkan (misal: `CONTROLLED_AUTO` $\rightarrow$ `ASSISTED_AUTO` $\rightarrow$ `RECOMMEND`).
+- **Strategy Versioning & Rollback**: Setiap perubahan strategi dicatat versinya (`Strategy v1`, `v2`, dst.) dan dapat di-rollback seketika ke *last-known-good strategy* melalui Dashboard maupun API.
+- **Data Quality Gate**: Menyaring metrik kotor, duplikasi, fake data simulasi dry-run, dan anomali bot spam sebelum masuk ke memori sistem.
+- **Smart Failure Classifier**: Memisahkan kendala teknis (API/jaringan/timeout) dari kualitas ide konten agar ide bagus tidak tereliminasi karena masalah koneksi.
+
+---
+
+### 📱 Perintah Telegram C2 Learning
+
+- `/learning` : Rangkuman status otonomi, skor kematangan, dan status belajar.
+- `/maturity` : Rincian 6 pilar Learning Maturity Score (0–100).
+- `/strategy` : Strategi aktif dan persentase alokasi pilar saat ini.
+- `/lessons` : Daftar pola unggul yang terdistilasi dalam Knowledge Base.
+- `/recommendations` : Rekomendasi kenaikan level otonomi teranalisis.

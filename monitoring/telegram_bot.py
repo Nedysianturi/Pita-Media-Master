@@ -104,6 +104,11 @@ class TelegramC2Bot:
                 "═══════════════════════════\n"
                 "Selamat datang di remote command Pita Media:\n\n"
                 "• `/status` - Lihat status worker, antrean, dan pengeluaran\n"
+                "• `/learning` - Status Learning Intelligence & Autonomy\n"
+                "• `/maturity` - Learning Maturity Score (0-100)\n"
+                "• `/strategy` - Strategi aktif & bobot pilar\n"
+                "• `/lessons` - Top pola unggul Knowledge Base\n"
+                "• `/recommendations` - Rekomendasi kenaikan otonomi\n"
                 "• `/providers` - Daftar AI providers & tier (Gemini, xAI, dll)\n"
                 "• `/platforms` - Status FB, Instagram, dan Threads\n"
                 "• `/daily` - Laporan ringkas harian (24 jam)\n"
@@ -119,6 +124,79 @@ class TelegramC2Bot:
                 "• `/restart_worker` - Reset & pulihkan status antrean\n"
                 "• `/job <id>` - Lihat detail lengkap job dan skor QC\n"
                 "• `/emergency_stop` - Hentikan seluruh sistem darurat\n"
+            )
+
+        elif base_cmd == "/learning":
+            from core.learning.learning_engine import learning_engine
+            d = learning_engine.get_learning_dashboard_overview()
+            return (
+                "🧠 *PITA MEDIA LEARNING STATUS*\n"
+                "═══════════════════════════\n"
+                f"• *Autonomy Level*: `{d['autonomy_level']}`\n"
+                f"• *Maturity Score*: `{d['maturity_score']}/100` ({d['maturity_stage']})\n"
+                f"• *Status Belajar*: {'⏸️ DIJEDA' if d['is_paused'] else '🟢 AKTIF'}\n"
+                f"• *Strategi Aktif*: {d['active_strategy']['name']}\n"
+                f"• *Top Lessons*: {len(d['top_lessons_learned'])} aturan Knowledge Base\n\n"
+                "Gunakan `/strategy`, `/maturity`, atau `/lessons` untuk detail."
+            )
+
+        elif base_cmd == "/maturity":
+            from core.learning.learning_maturity import learning_maturity
+            mat = learning_maturity.calculate_maturity_score()
+            bk = mat.get("breakdown", {})
+            return (
+                "📊 *LEARNING MATURITY SCORE*\n"
+                "═══════════════════════════\n"
+                f"• *Total Skor*: `{mat['total_score']}/100`\n"
+                f"• *Tahap*: *{mat['stage']}*\n"
+                f"• *Deskripsi*: {mat['description']}\n\n"
+                "📈 *Rincian Skor 6 Pilar*:\n"
+                f"  • Valid Posts: `{bk.get('valid_posts_score', 0)}/20`\n"
+                f"  • Telemetry Coverage: `{bk.get('telemetry_coverage_score', 0)}/20`\n"
+                f"  • A/B Experiments: `{bk.get('experiments_score', 0)}/15`\n"
+                f"  • Data Quality: `{bk.get('data_quality_score', 0)}/15`\n"
+                f"  • Prediction Accuracy: `{bk.get('prediction_accuracy_score', 0)}/15`\n"
+                f"  • System Stability: `{bk.get('stability_score', 0)}/15`\n"
+            )
+
+        elif base_cmd == "/strategy":
+            from core.learning.strategy_versioning import strategy_versioning
+            s = strategy_versioning.get_active_strategy()
+            dist = s.get("pilar_distribution", {})
+            dist_lines = "\n".join([f"  • #{p}: `{int(w*100)}%`" for p, w in dist.items()])
+            return (
+                f"📈 *STRATEGI AKTIF (v{s['version_num']})*\n"
+                "═══════════════════════════\n"
+                f"• *Nama*: {s['name']}\n"
+                f"• *Alasan*: {s['reason']}\n\n"
+                f"📊 *Alokasi Distribusi Pilar*:\n{dist_lines}\n\n"
+                f"🕒 Dibuat: `{s['created_at']}`"
+            )
+
+        elif base_cmd == "/lessons":
+            from core.learning.knowledge_base import knowledge_base
+            items = knowledge_base.get_active_knowledge(min_confidence=0.5)
+            if not items:
+                return "📚 *KNOWLEDGE BASE*: Belum ada aturan unggul terdistilasi (Sistem dalam tahap observasi)."
+            lines = ["📚 *TOP LESSONS LEARNED*", "═══════════════════════════"]
+            for it in items[:5]:
+                lines.append(f"• *{it['title']}* (Confidence: `{int(it['confidence_score']*100)}%`)")
+                lines.append(f"  _Insight_: {it['insight_text']}\n")
+            return "\n".join(lines)
+
+        elif base_cmd == "/recommendations":
+            from core.learning.autonomy_controller import autonomy_controller
+            rec = autonomy_controller.evaluate_maturity_recommendation()
+            if not rec:
+                return "💡 *REKOMENDASI*: Belum ada rekomendasi perubahan level otonomi baru."
+            return (
+                "💡 *REKOMENDASI OTONOMI PITA MEDIA*\n"
+                "═══════════════════════════\n"
+                f"• *Level Saat Ini*: `{rec['current_level']}`\n"
+                f"• *Saran Level*: `{rec['recommended_level']}`\n"
+                f"• *Maturity Score*: `{rec['maturity_score']}/100` ({rec['maturity_stage']})\n\n"
+                f"📝 *Alasan*: {rec['message']}\n\n"
+                "Buka Dashboard untuk menyetujui rekomendasi ini."
             )
 
         elif base_cmd == "/providers":

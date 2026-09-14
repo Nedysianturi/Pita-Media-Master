@@ -109,26 +109,34 @@ class CentralCredentialManager:
 
     def get_credential(self, key: str, fallback_env: Optional[str] = None) -> Any:
         """Retrieves active credential value securely, prioritizing direct .env read."""
-        # 1. Direct .env check
         env_dict = self.read_env_file()
+
+        # 1. If explicit fallback_env provided
         if fallback_env and fallback_env in env_dict and env_dict[fallback_env]:
             return env_dict[fallback_env]
-        if key.upper() in env_dict and env_dict[key.upper()]:
-            return env_dict[key.upper()]
 
-        # 2. SecretStore check
-        val = self.secret_store.get_secret(key)
-        if val:
-            return val
-
-        # 3. Check prefixed keys for service dictionaries
+        # 2. Check prefixed keys for service dictionaries (e.g. key="gemini", "facebook", "telegram")
         prefix_dict = {}
         for k in ["api_key", "access_token", "page_id", "ig_user_id", "threads_user_id", "user_id", "token"]:
             stored = self.secret_store.get_secret(f"{key}_{k}")
             if stored:
                 prefix_dict[k] = stored
+            elif f"{key.upper()}_{k.upper()}" in env_dict:
+                prefix_dict[k] = env_dict[f"{key.upper()}_{k.upper()}"]
         if prefix_dict:
             return prefix_dict
+
+        # 3. Direct exact key check in .env
+        if key.upper() in env_dict and env_dict[key.upper()]:
+            return env_dict[key.upper()]
+        if key in env_dict and env_dict[key]:
+            return env_dict[key]
+
+        # 4. SecretStore exact check
+        val = self.secret_store.get_secret(key)
+        if val:
+            return val
+
         if fallback_env:
             return os.getenv(fallback_env, "")
         return None

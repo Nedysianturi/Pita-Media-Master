@@ -377,10 +377,34 @@ async def get_logs(_: bool = Depends(verify_dashboard_access)):
             return f"Error reading log file: {e}"
     return "Log file empty or not initialized."
 
-@app.get("/api/health", response_class=JSONResponse)
-async def run_health_checks(_: bool = Depends(verify_dashboard_access)):
-    res = token_health_manager.run_full_health_audit()
-    return {"items": [{"name": k, "status": v.get("status"), "message": v.get("message")} for k, v in res.items()]}
+# --- LEARNING INTELLIGENCE APIS ---
+@app.get("/api/learning/overview", response_class=JSONResponse)
+async def get_learning_overview(_: bool = Depends(verify_dashboard_access)):
+    from core.learning.learning_engine import learning_engine
+    return learning_engine.get_learning_dashboard_overview()
+
+@app.post("/api/learning/autonomy", response_class=JSONResponse)
+async def set_autonomy_level_endpoint(payload: Dict[str, Any], _: bool = Depends(verify_dashboard_access)):
+    from core.learning.autonomy_controller import autonomy_controller
+    level = payload.get("level", "OBSERVE")
+    reason = payload.get("reason", "Manual adjustment from Dashboard")
+    res = autonomy_controller.set_autonomy_level(level, changed_by="DASHBOARD_ADMIN", reason=reason)
+    return {"success": True, "data": res}
+
+@app.post("/api/learning/strategy/rollback", response_class=JSONResponse)
+async def rollback_strategy_endpoint(_: bool = Depends(verify_dashboard_access)):
+    from core.learning.strategy_versioning import strategy_versioning
+    res = strategy_versioning.rollback_to_last_proven_strategy()
+    if res:
+        return {"success": True, "message": f"Berhasil rollback ke Strategy v{res.get('version_num')}", "data": res}
+    return {"success": False, "message": "Tidak ada strategi versi stabil sebelumnya untuk di-rollback"}
+
+@app.post("/api/learning/pause", response_class=JSONResponse)
+async def toggle_learning_pause(payload: Dict[str, Any], _: bool = Depends(verify_dashboard_access)):
+    from core.learning.autonomy_controller import autonomy_controller
+    pause = payload.get("pause", True)
+    autonomy_controller.pause_learning(pause)
+    return {"success": True, "is_paused": autonomy_controller.is_paused}
 
 # --- MAIN DASHBOARD HTML WITH 18 VIEWS ---
 @app.get("/", response_class=HTMLResponse)
@@ -504,6 +528,7 @@ async def serve_dashboard(_: bool = Depends(verify_dashboard_access)):
             <li class="nav-item" onclick="switchTab('music')">🎵 Music & Mood Engine</li>
             
             <div class="nav-group-title">Quality & Strategy</div>
+            <li class="nav-item" onclick="switchTab('learning')">🧠 Learning Center</li>
             <li class="nav-item" onclick="switchTab('qc')">🛡️ QC & Quality Gate</li>
             <li class="nav-item" onclick="switchTab('strategy')">📈 Strategy & Heatmap</li>
             <li class="nav-item" onclick="switchTab('costs')">💰 Cost Governor</li>
@@ -711,6 +736,106 @@ async def serve_dashboard(_: bool = Depends(verify_dashboard_access)):
                 <div class="card"><div class="card-title">Quality Gate Audit Logs</div><table><thead><tr><th>Content</th><th>Pilar</th><th>Iteration</th><th>Score</th><th>Verdict</th><th>Feedback</th></tr></thead><tbody id="qc-tbody"></tbody></table></div>
             </div>
 
+            <!-- 10b. LEARNING CENTER TAB -->
+            <div id="tab-learning" class="tab-pane">
+                <!-- Maturity & Autonomy Controller Header Grid -->
+                <div class="grid-2">
+                    <div class="card">
+                        <div class="card-title">🧠 Learning Maturity Score</div>
+                        <div style="display: flex; align-items: baseline; gap: 12px; margin: 10px 0;">
+                            <span id="learn-maturity-score" style="font-size: 2.4rem; font-weight: 800; font-family: 'Plus Jakarta Sans'; color: #60A5FA;">--/100</span>
+                            <span id="learn-maturity-stage" class="brand-badge" style="font-size: 0.8rem; padding: 4px 10px;">INSUFFICIENT_DATA</span>
+                        </div>
+                        <div id="learn-maturity-desc" style="font-size: 0.82rem; color: var(--text-muted); margin-bottom: 14px;">Memuat data kematangan...</div>
+                        
+                        <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; font-size: 0.78rem;">
+                            <div>Valid Posts: <b id="learn-bk-posts" style="color:var(--accent-emerald);">-</b> / 20</div>
+                            <div>Telemetry: <b id="learn-bk-telemetry" style="color:var(--accent-cyan);">-</b> / 20</div>
+                            <div>Experiments: <b id="learn-bk-experiments" style="color:var(--accent-indigo);">-</b> / 15</div>
+                            <div>Data Quality: <b id="learn-bk-quality" style="color:var(--accent-emerald);">-</b> / 15</div>
+                            <div>Prediction Acc: <b id="learn-bk-pred" style="color:var(--accent-amber);">-</b> / 15</div>
+                            <div>Stability: <b id="learn-bk-stability" style="color:var(--accent-blue);">-</b> / 15</div>
+                        </div>
+                    </div>
+
+                    <div class="card">
+                        <div class="card-title">🎮 Autonomy Controller & Governance</div>
+                        <div style="display: flex; align-items: center; justify-content: space-between; margin: 10px 0;">
+                            <div>
+                                <div style="font-size: 0.75rem; color: var(--text-muted);">Current Autonomy Level:</div>
+                                <span id="learn-autonomy-badge" style="font-size: 1.1rem; font-weight: 800; color: #10B981; letter-spacing: 0.05em;">OBSERVE</span>
+                            </div>
+                            <span id="learn-pause-badge" class="brand-badge" style="font-size: 0.75rem;">● LEARNING ACTIVE</span>
+                        </div>
+                        
+                        <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; margin-top: 14px;">
+                            <button class="btn btn-outline" style="font-size:0.75rem;" onclick="setAutonomyLevel('OBSERVE')">Level 1: OBSERVE</button>
+                            <button class="btn btn-outline" style="font-size:0.75rem;" onclick="setAutonomyLevel('RECOMMEND')">Level 2: RECOMMEND</button>
+                            <button class="btn btn-outline" style="font-size:0.75rem;" onclick="setAutonomyLevel('ASSISTED_AUTO')">Level 3: ASSISTED AUTO</button>
+                            <button class="btn btn-outline" style="font-size:0.75rem;" onclick="setAutonomyLevel('CONTROLLED_AUTO')">Level 4: CONTROLLED AUTO</button>
+                        </div>
+                        
+                        <div style="display: flex; gap: 8px; margin-top: 10px;">
+                            <button class="btn btn-outline" style="font-size:0.75rem; flex:1;" onclick="toggleLearningPause()">⏸️ Pause / Resume</button>
+                            <button class="btn btn-outline" style="font-size:0.75rem; flex:1; border-color:var(--accent-amber); color:var(--accent-amber);" onclick="rollbackStrategy()">⏪ Rollback Strategy</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Maturity Recommendation Alert Box (if present) -->
+                <div id="learn-rec-box" class="card" style="display:none; margin-bottom: 20px; border-color: rgba(59, 130, 246, 0.5); background: rgba(59, 130, 246, 0.05);">
+                    <div style="display:flex; justify-content:space-between; align-items:center;">
+                        <div>
+                            <div style="font-weight:700; color:#60A5FA; font-size:0.9rem;">💡 Rekomendasi Kenaikan Level Otonomi</div>
+                            <div id="learn-rec-text" style="font-size:0.83rem; color:var(--text-main); margin-top:4px;">-</div>
+                        </div>
+                        <div style="display:flex; gap:8px;">
+                            <button class="btn btn-primary" style="font-size:0.75rem;" onclick="approveRecommendation()">✅ Setujui</button>
+                            <button class="btn btn-outline" style="font-size:0.75rem;" onclick="document.getElementById('learn-rec-box').style.display='none'">Abaikan</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Active Strategy Version & Pilar Distribution -->
+                <div class="card" style="margin-bottom: 20px;">
+                    <div class="card-title">📈 Strategi Aktif & Bobot Distribusi Pilar</div>
+                    <div id="learn-strategy-name" style="font-weight:700; font-size:0.95rem; margin:6px 0;">Strategy v1 - Baseline Balanced Distribution</div>
+                    <div id="learn-strategy-pilar-bars" style="display:grid; grid-template-columns:repeat(4, 1fr); gap:12px; margin-top:10px;">
+                        <!-- Pillar Bars dynamically populated -->
+                    </div>
+                </div>
+
+                <!-- Top Distilled Knowledge Items -->
+                <div class="card" style="margin-bottom: 20px;">
+                    <div class="card-title">📚 Knowledge Base — Sari Pengetahuan Terdistilasi</div>
+                    <table>
+                        <thead>
+                            <tr><th>Kategori</th><th>Judul Pola</th><th>Insight & Aturan</th><th>Sample</th><th>Confidence</th><th>Status</th></tr>
+                        </thead>
+                        <tbody id="learn-knowledge-tbody">
+                            <tr><td colspan="6" style="text-align:center; color:var(--text-muted);">Memuat Knowledge Base...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- Recent Automatic Postmortems & Audience Ideas -->
+                <div class="grid-2">
+                    <div class="card">
+                        <div class="card-title">🔍 Evaluasi Postmortem Otomatis</div>
+                        <div id="learn-postmortems-list" style="margin-top:10px; font-size:0.82rem;">
+                            Memuat postmortem...
+                        </div>
+                    </div>
+
+                    <div class="card">
+                        <div class="card-title">💬 Ide & Feedback Audiens Terkurasi</div>
+                        <div id="learn-audience-list" style="margin-top:10px; font-size:0.82rem;">
+                            Memuat ide audiens...
+                        </div>
+                    </div>
+                </div>
+            </div>
+
             <!-- 11. STRATEGY TAB -->
             <div id="tab-strategy" class="tab-pane">
                 <div class="card"><div class="card-title">Optimal Publishing Heatmap (WIB / UTC+7)</div><div style="margin-top: 12px;"><p>⏰ <b>06:30 - 08:00 WIB:</b> Morning Commute / Mindset Hook</p><p>⏰ <b>12:00 - 13:00 WIB:</b> Lunch Break / Casual Storytelling</p><p>⏰ <b>19:00 - 21:30 WIB:</b> Prime Time Relaxation / Emotional Long-form</p></div></div>
@@ -835,6 +960,7 @@ async def serve_dashboard(_: bool = Depends(verify_dashboard_access)):
             if (target) target.classList.add('active');
 
             if (tabId === 'overview') pollStats();
+            if (tabId === 'learning') fetchLearningData();
             if (tabId === 'content') fetchContent();
             if (tabId === 'queue') fetchQueue();
             if (tabId === 'receipts') fetchReceipts();
@@ -1297,6 +1423,161 @@ async def serve_dashboard(_: bool = Depends(verify_dashboard_access)):
                     <td style="color:var(--text-muted); font-size:0.75rem;">${{q.feedback_text}}</td>
                 </tr>
             `).join('');
+        }}
+
+        // --- LEARNING INTELLIGENCE CLIENT HANDLERS ---
+        async function fetchLearningData() {{
+            try {{
+                const res = await fetch('/api/learning/overview');
+                const d = await res.json();
+                
+                // 1. Maturity Score & Breakdown
+                document.getElementById('learn-maturity-score').innerText = d.maturity_score + '/100';
+                const stageEl = document.getElementById('learn-maturity-stage');
+                stageEl.innerText = d.maturity_stage;
+                if (d.maturity_score >= 60) stageEl.style.background = 'rgba(16, 185, 129, 0.2)';
+                
+                const bk = d.maturity_breakdown || {{}};
+                document.getElementById('learn-bk-posts').innerText = (bk.valid_posts_score || 0);
+                document.getElementById('learn-bk-telemetry').innerText = (bk.telemetry_coverage_score || 0);
+                document.getElementById('learn-bk-experiments').innerText = (bk.experiments_score || 0);
+                document.getElementById('learn-bk-quality').innerText = (bk.data_quality_score || 0);
+                document.getElementById('learn-bk-pred').innerText = (bk.prediction_accuracy_score || 0);
+                document.getElementById('learn-bk-stability').innerText = (bk.stability_score || 0);
+
+                // 2. Autonomy Badge & Pause State
+                const badge = document.getElementById('learn-autonomy-badge');
+                badge.innerText = d.autonomy_level;
+                if (d.autonomy_level === 'OBSERVE') badge.style.color = '#10B981';
+                else if (d.autonomy_level === 'RECOMMEND') badge.style.color = '#60A5FA';
+                else if (d.autonomy_level === 'ASSISTED_AUTO') badge.style.color = '#F59E0B';
+                else if (d.autonomy_level === 'CONTROLLED_AUTO') badge.style.color = '#EF4444';
+
+                const pBadge = document.getElementById('learn-pause-badge');
+                if (d.is_paused) {{
+                    pBadge.innerText = '⏸️ LEARNING PAUSED';
+                    pBadge.style.background = 'rgba(245, 158, 11, 0.2)';
+                    pBadge.style.color = 'var(--accent-amber)';
+                }} else {{
+                    pBadge.innerText = '● LEARNING ACTIVE';
+                    pBadge.style.background = 'rgba(16, 185, 129, 0.2)';
+                    pBadge.style.color = 'var(--accent-emerald)';
+                }}
+
+                // 3. Recommendation Box
+                const recBox = document.getElementById('learn-rec-box');
+                if (d.maturity_recommendation) {{
+                    recBox.style.display = 'block';
+                    document.getElementById('learn-rec-text').innerText = d.maturity_recommendation.message;
+                    recBox.dataset.targetLevel = d.maturity_recommendation.recommended_level;
+                }} else {{
+                    recBox.style.display = 'none';
+                }}
+
+                // 4. Strategy & Pillar Distribution
+                if (d.active_strategy) {{
+                    document.getElementById('learn-strategy-name').innerText = d.active_strategy.name + ' (' + d.active_strategy.reason + ')';
+                    const dist = d.active_strategy.pilar_distribution || {{}};
+                    const pContainer = document.getElementById('learn-strategy-pilar-bars');
+                    pContainer.innerHTML = Object.entries(dist).map(([p, w]) => `
+                        <div style="background:var(--bg-base); padding:10px; border-radius:8px; border:1px solid var(--border);">
+                            <div style="font-size:0.75rem; color:var(--text-muted); text-transform:uppercase;">${{p}}</div>
+                            <div style="font-size:1.2rem; font-weight:800; color:#60A5FA; margin:4px 0;">${{Math.round(w*100)}}%</div>
+                            <div style="height:4px; background:rgba(255,255,255,0.1); border-radius:2px; overflow:hidden;">
+                                <div style="width:${{w*100}}%; height:100%; background:var(--accent-blue);"></div>
+                            </div>
+                        </div>
+                    `).join('');
+                }}
+
+                // 5. Knowledge Base Table
+                const kbTbody = document.getElementById('learn-knowledge-tbody');
+                if (d.top_lessons_learned && d.top_lessons_learned.length > 0) {{
+                    kbTbody.innerHTML = d.top_lessons_learned.map(k => `
+                        <tr>
+                            <td><span class="brand-badge">${{k.category.toUpperCase()}}</span></td>
+                            <td><b>${{k.title}}</b></td>
+                            <td style="font-size:0.8rem; color:var(--text-main);">${{k.insight_text}}</td>
+                            <td>${{k.sample_size}} items</td>
+                            <td><b style="color:var(--accent-emerald);">${{Math.round(k.confidence_score*100)}}%</b></td>
+                            <td><span class="brand-badge" style="background:rgba(16, 185, 129, 0.15); color:var(--accent-emerald);">${{k.status}}</span></td>
+                        </tr>
+                    `).join('');
+                }} else {{
+                    kbTbody.innerHTML = '<tr><td colspan="6" style="text-align:center; color:var(--text-muted);">Belum ada aturan Knowledge Base yang terdistilasi. Sistem sedang mengumpulkan data observasi.</td></tr>';
+                }}
+
+                // 6. Postmortems
+                const pmList = document.getElementById('learn-postmortems-list');
+                if (d.recent_postmortems && d.recent_postmortems.length > 0) {{
+                    pmList.innerHTML = d.recent_postmortems.map(pm => `
+                        <div style="background:var(--bg-base); padding:10px 14px; border-radius:6px; margin-bottom:8px; border-left:3px solid var(--accent-indigo);">
+                            <div style="font-weight:700; color:var(--text-main);">${{pm.trigger_reason}} — #${{pm.pilar}}</div>
+                            <div style="color:var(--text-muted); font-size:0.78rem; margin-top:2px;">${{pm.why_worked || pm.why_failed}}</div>
+                            <div style="color:#10B981; font-size:0.75rem; margin-top:4px;">💡 <b>Pelajari:</b> ${{pm.what_to_repeat || pm.what_to_avoid}}</div>
+                        </div>
+                    `).join('');
+                }} else {{
+                    pmList.innerHTML = '<div style="color:var(--text-muted);">Belum ada konten anomali/viral yang memerlukan evaluasi postmortem.</div>';
+                }}
+
+                // 7. Community Ideas
+                const audList = document.getElementById('learn-audience-list');
+                if (d.community_ideas && d.community_ideas.length > 0) {{
+                    audList.innerHTML = d.community_ideas.map(ci => `
+                        <div style="background:var(--bg-base); padding:10px 14px; border-radius:6px; margin-bottom:8px; border-left:3px solid var(--accent-emerald);">
+                            <div style="font-size:0.8rem; color:var(--text-main); font-weight:600;">${{ci.idea}}</div>
+                            <div style="font-size:0.72rem; color:var(--text-muted); margin-top:3px;">Sumber: ${{ci.platform}} (${{ci.created_at}})</div>
+                        </div>
+                    `).join('');
+                }} else {{
+                    audList.innerHTML = '<div style="color:var(--text-muted);">Belum ada request ide yang terdistilasi dari komentar audiens.</div>';
+                }}
+
+            }} catch (e) {{ console.error('Error fetching learning overview:', e); }}
+        }}
+
+        async function setAutonomyLevel(level) {{
+            const res = await fetch('/api/learning/autonomy', {{
+                method: 'POST',
+                headers: {{ 'Content-Type': 'application/json' }},
+                body: JSON.stringify({{ level: level, reason: 'Pengaturan manual melalui Dashboard Control Panel' }})
+            }});
+            const d = await res.json();
+            if (d.success) {{
+                showToast('Level Otonomi diubah ke: ' + level);
+                fetchLearningData();
+            }}
+        }}
+
+        async function rollbackStrategy() {{
+            if (!confirm('Apakah Anda yakin ingin melakukan rollback ke strategi teruji sebelumnya?')) return;
+            const res = await fetch('/api/learning/strategy/rollback', {{ method: 'POST' }});
+            const d = await res.json();
+            showToast(d.message);
+            fetchLearningData();
+        }}
+
+        async function toggleLearningPause() {{
+            const curBadge = document.getElementById('learn-pause-badge').innerText;
+            const isPausedNow = curBadge.includes('PAUSED');
+            const res = await fetch('/api/learning/pause', {{
+                method: 'POST',
+                headers: {{ 'Content-Type': 'application/json' }},
+                body: JSON.stringify({{ pause: !isPausedNow }})
+            }});
+            const d = await res.json();
+            showToast(d.is_paused ? 'Learning Engine DIJEDA.' : 'Learning Engine DIAKTIFKAN.');
+            fetchLearningData();
+        }}
+
+        async function approveRecommendation() {{
+            const recBox = document.getElementById('learn-rec-box');
+            const target = recBox.dataset.targetLevel;
+            if (target) {{
+                await setAutonomyLevel(target);
+                recBox.style.display = 'none';
+            }}
         }}
 
         async function triggerStudio(pilar) {{

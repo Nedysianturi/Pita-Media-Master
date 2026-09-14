@@ -48,11 +48,21 @@ class Ideator:
             else "Fokus pada konsistensi pilar standar dengan eksekusi visual dan narasi kelas atas."
         )
 
+        from core.learning.knowledge_base import knowledge_base
+        from core.learning.strategy_scoring import strategy_scoring
+
+        # Ambil insight aktif dari Knowledge Base
+        active_knowledge = knowledge_base.get_active_knowledge(min_confidence=0.6)
+        knowledge_context = ""
+        if active_knowledge:
+            bullet_points = "\n".join(f"- {k['category'].upper()}: {k['insight_text']}" for k in active_knowledge[:3])
+            knowledge_context = f"\nPelajari Pola Unggul Historis (Gunakan wawasan ini):\n{bullet_points}\n"
+
         prompt = f"""
-        Rencanakan satu ide konten baru untuk pilar: '{pilar}'.
+        Rencanakan satu ide konten unggulan untuk pilar: '{pilar}'.
         
         {exploration_note}
-        
+        {knowledge_context}
         Topik yang sudah dibuat baru-baru ini (HINDARI REPETISI INI):
         [{recent_context}]
         
@@ -64,8 +74,8 @@ class Ideator:
         """
 
         if not self.gemini.is_configured():
-            # Fallback ide mock jika offline
-            return self._get_mock_idea(pilar, is_exploration)
+            # Fallback ide mock melalui Strategy Scoring multi-candidate
+            return self._get_scored_mock_idea(pilar, is_exploration)
 
         idea = await self.gemini.generate_structured(
             prompt=prompt,
@@ -74,43 +84,45 @@ class Ideator:
             model=settings.GEMINI_PRO_MODEL,
         )
         if not getattr(idea, "title", None) or not getattr(idea, "concept", None):
-            idea = self._get_mock_idea(pilar, is_exploration)
+            idea = self._get_scored_mock_idea(pilar, is_exploration)
         idea.pilar = pilar
         idea.is_exploration = is_exploration
         return idea
 
-    def _get_mock_idea(self, pilar: str, is_exploration: bool) -> ContentIdea:
-        mock_data = {
-            "pita_transformasi": ContentIdea(
-                pilar="pita_transformasi",
-                title="Transformasi Jam Dinding Kuno Berkarat Menjadi Arloji Meja Steampunk",
-                concept="Proses timelapse restorasi dan modifikasi jam antik dengan roda gigi kuningan bertahap hingga reveal akhir berputar sempurna.",
-                visual_theme="Warm Vintage Workshop with Amber Lighting",
-                is_exploration=is_exploration,
-            ),
-            "pita_mini": ContentIdea(
-                pilar="pita_mini",
-                title="Pembangunan Toko Buku Miniatur Klasik di Sudut Rak Kayu",
-                concept="Konstruksi miniatur rak buku, tangga putar kayu balsa, buku mikroskopis, dan lampu gantung hangat micro-LED.",
-                visual_theme="Cozy Diorama Studio Lighting",
-                is_exploration=is_exploration,
-            ),
-            "pita_cerita": ContentIdea(
-                pilar="pita_cerita",
-                title="Garis Waktu Sang Penjaga Mercusuar Tua",
-                concept="Narasi 4 slide tentang seorang penjaga mercusuar yang menyaksikan perubahan zaman dari badai samudera hingga fajar kedamaian.",
-                visual_theme="Cinematic Ocean Twilight & Oil Painting Tone",
-                is_exploration=is_exploration,
-            ),
-            "pita_kreasi": ContentIdea(
-                pilar="pita_kreasi",
-                title="Kardus Bekas & Pasir Pantai Menjadi Relief Kastil Megah",
-                concept="Eksplorasi seni konsep menggunakan material karton bergelombang dan butiran pasir menjadi arsitektur kastil dramatis.",
-                visual_theme="Dramatic Sunlight & Macro Texture",
-                is_exploration=is_exploration,
-            ),
-        }
-        return mock_data.get(pilar, mock_data["pita_transformasi"])
+    def _get_scored_mock_idea(self, pilar: str, is_exploration: bool) -> ContentIdea:
+        from core.learning.strategy_scoring import strategy_scoring
+        
+        candidate_pool = [
+            {
+                "title": f"Transformasi Restorasi Klasik #{pilar.split('_')[-1].upper()}",
+                "concept": "Proses bertahap restorasi objek antik dengan detail mekanik presisi hingga penyelesaian memukau.",
+                "is_exploration": is_exploration,
+            },
+            {
+                "title": f"Kreasi Miniatur Diorama #{pilar.split('_')[-1].upper()}",
+                "concept": "Konstruksi diorama mikroskopis bertekstur tinggi dengan pencahayaan sinematik hangat.",
+                "is_exploration": is_exploration,
+            },
+            {
+                "title": f"Narasi Visual Menggugah #{pilar.split('_')[-1].upper()}",
+                "concept": "Rangkaian gambar bercerita mendalam tentang dedikasi dan keindahan kerajinan.",
+                "is_exploration": is_exploration,
+            },
+        ]
+        
+        scored = strategy_scoring.score_candidate_ideas(pilar=pilar, candidates=candidate_pool)
+        best = strategy_scoring.select_best_candidate(scored)
+        
+        selected_title = best.title if best else candidate_pool[0]["title"]
+        selected_concept = best.concept if best else candidate_pool[0]["concept"]
+
+        return ContentIdea(
+            pilar=pilar,
+            title=selected_title,
+            concept=selected_concept,
+            visual_theme="Cinematic Warm Lighting",
+            is_exploration=is_exploration,
+        )
 
 
 ideator = Ideator()

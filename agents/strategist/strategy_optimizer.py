@@ -90,6 +90,8 @@ class StrategyOptimizer:
         """
         Memperbarui bobot distribusi pilar dengan mencatat versi riwayat untuk rollback.
         """
+        from core.learning.strategy_versioning import strategy_versioning
+        
         # Normalisasi bobot agar total == 1.0
         total_w = sum(new_weights.values())
         normalized = {k: round(v / total_w, 2) for k, v in new_weights.items()}
@@ -103,17 +105,33 @@ class StrategyOptimizer:
         self.strategy_history.append(history_entry)
         self.current_weights = normalized
 
+        # Persist ke Database
+        strategy_versioning.create_new_strategy_version(
+            name=f"Strategy v{len(self.strategy_history)+1} - Updated Weights",
+            pilar_distribution=normalized,
+            reason=reason,
+            expected_result="Optimalisasi distribusi pilar berdasarkan evaluasi performa.",
+        )
+
         return history_entry
 
     def rollback_strategy(self) -> Optional[Dict[str, Any]]:
         """
         Mengembalikan bobot strategi ke versi sebelumnya jika tersedia.
         """
+        from core.learning.strategy_versioning import strategy_versioning
+
         if not self.strategy_history:
+            # Coba rollback dari database
+            res = strategy_versioning.rollback_to_last_proven_strategy()
+            if res:
+                self.current_weights = res.get("pilar_distribution", self.current_weights)
+                return res
             return None
 
         last_change = self.strategy_history.pop()
         self.current_weights = last_change["previous_weights"]
+        strategy_versioning.rollback_to_last_proven_strategy()
         return last_change
 
 

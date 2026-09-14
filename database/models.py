@@ -227,7 +227,190 @@ class AuditLog(Base):
     details = Column(JSON, nullable=True)
 
 
+
+class LongTermMemoryItem(Base):
+    __tablename__ = "long_term_memories"
+
+    id = Column(String(36), primary_key=True, default=generate_uuid)
+    content_id = Column(String(36), ForeignKey("contents.id"), nullable=True, index=True)
+    pilar = Column(String(50), nullable=False, index=True)
+    title = Column(String(255), nullable=False)
+    theme = Column(String(100), nullable=True)
+    subtheme = Column(String(100), nullable=True)
+    characters = Column(JSON, nullable=True, default=list)
+    story_plot = Column(Text, nullable=True)
+    transformation_type = Column(String(100), nullable=True)
+    miniature_object = Column(String(150), nullable=True)
+    creation_materials = Column(JSON, nullable=True, default=list)
+    hook_text = Column(Text, nullable=True)
+    hook_type = Column(String(50), nullable=True)  # question, cliffhanger, shocking_fact, curiosity_gap, emotional_relatable
+    visual_style = Column(String(100), nullable=True)
+    music_recommendation = Column(String(150), nullable=True)
+    platforms_published = Column(JSON, nullable=True, default=list)
+    posting_time_utc = Column(DateTime, nullable=True)
+    performance_summary = Column(JSON, nullable=True, default=dict)
+    lessons_learned = Column(Text, nullable=True)
+    tags = Column(JSON, nullable=True, default=list)
+    created_at = Column(DateTime, default=utc_now, nullable=False, index=True)
+
+
+class KnowledgeItem(Base):
+    __tablename__ = "knowledge_items"
+
+    id = Column(String(36), primary_key=True, default=generate_uuid)
+    category = Column(String(50), nullable=False, index=True)  # hook, visual_style, posting_time, slide_count, topic_fatigue, pilar_trend, model_qc, cost_roi, emotional_trigger
+    title = Column(String(255), nullable=False)
+    insight_text = Column(Text, nullable=False)
+    evidence = Column(JSON, nullable=False, default=dict)
+    sample_size = Column(Integer, default=0, nullable=False)
+    confidence_score = Column(Float, default=0.5, nullable=False)  # 0.0 - 1.0
+    period_start = Column(DateTime, nullable=True)
+    period_end = Column(DateTime, nullable=True)
+    source_metrics = Column(JSON, nullable=True, default=dict)
+    status = Column(String(20), default="ACTIVE", nullable=False, index=True)  # ACTIVE, WEAK, EXPIRED
+    decay_factor = Column(Float, default=1.0)
+    created_at = Column(DateTime, default=utc_now, nullable=False)
+    updated_at = Column(DateTime, default=utc_now, onupdate=utc_now, nullable=False)
+
+
+class ContentPostmortem(Base):
+    __tablename__ = "content_postmortems"
+
+    id = Column(String(36), primary_key=True, default=generate_uuid)
+    content_id = Column(String(36), ForeignKey("contents.id"), nullable=False, index=True)
+    pilar = Column(String(50), nullable=False)
+    trigger_reason = Column(String(50), nullable=False)  # HIGH_PERFORMER, LOW_PERFORMER, HIGH_COST, VIRAL_SHARES, HIGH_COMMENTS, ANOMALY
+    performance_metrics = Column(JSON, nullable=False, default=dict)
+    why_worked = Column(Text, nullable=True)
+    why_failed = Column(Text, nullable=True)
+    what_to_repeat = Column(Text, nullable=True)
+    what_to_avoid = Column(Text, nullable=True)
+    what_to_test_next = Column(Text, nullable=True)
+    distilled_knowledge_id = Column(String(36), nullable=True)
+    created_at = Column(DateTime, default=utc_now, nullable=False, index=True)
+
+
+class StrategyVersion(Base):
+    __tablename__ = "strategy_versions"
+
+    id = Column(String(36), primary_key=True, default=generate_uuid)
+    version_num = Column(Integer, nullable=False, index=True)
+    name = Column(String(100), nullable=False)
+    pilar_distribution = Column(JSON, nullable=False)
+    posting_schedule = Column(JSON, nullable=True, default=dict)
+    hook_strategy = Column(JSON, nullable=True, default=dict)
+    content_style = Column(JSON, nullable=True, default=dict)
+    provider_routing = Column(JSON, nullable=True, default=dict)
+    experimentation_policy = Column(JSON, nullable=True, default=dict)
+    reason = Column(Text, nullable=False)
+    expected_result = Column(Text, nullable=True)
+    is_active = Column(Boolean, default=False, nullable=False, index=True)
+    is_proven_good = Column(Boolean, default=False)
+    created_by = Column(String(50), default="SYSTEM_LEARNING")  # SYSTEM_LEARNING, ADMIN_MANUAL, AUTO_ROLLBACK
+    created_at = Column(DateTime, default=utc_now, nullable=False)
+
+
+class ContentPrediction(Base):
+    __tablename__ = "content_predictions"
+
+    id = Column(String(36), primary_key=True, default=generate_uuid)
+    content_id = Column(String(36), ForeignKey("contents.id"), nullable=False, index=True)
+    candidate_idea_title = Column(String(255), nullable=True)
+    pilar = Column(String(50), nullable=False)
+    predicted_engagement = Column(Float, default=0.0)
+    predicted_share_score = Column(Float, default=0.0)
+    predicted_retention = Column(String(20), default="MEDIUM")  # LOW, MEDIUM, HIGH, VERY_HIGH
+    predicted_novelty_score = Column(Float, default=0.0)
+    fatigue_risk_score = Column(Float, default=0.0)
+    overall_idea_score = Column(Float, default=0.0)
+    selection_reason = Column(Text, nullable=True)
+    confidence_level = Column(String(20), default="MEDIUM")  # LOW, MEDIUM, HIGH, VERY_HIGH
+    confidence_score = Column(Float, default=0.5)
+    
+    # Actual realization data after publishing
+    actual_engagement = Column(Float, nullable=True)
+    actual_share_score = Column(Float, nullable=True)
+    actual_retention = Column(String(20), nullable=True)
+    prediction_error_delta = Column(Float, nullable=True)
+    evaluated_at = Column(DateTime, nullable=True)
+    created_at = Column(DateTime, default=utc_now, nullable=False)
+
+
+class AudienceInsight(Base):
+    __tablename__ = "audience_insights"
+
+    id = Column(String(36), primary_key=True, default=generate_uuid)
+    platform = Column(String(50), nullable=False, index=True)
+    raw_comment_id = Column(String(100), nullable=True)
+    category = Column(String(50), nullable=False, index=True)  # POSITIVE, NEGATIVE, QUESTION, REQUEST, CONFUSION, HUMOR, EMOTIONAL_RESPONSE, CONTENT_IDEA, SPAM, OTHER
+    sentiment = Column(String(20), nullable=False)  # POSITIVE, NEUTRAL, NEGATIVE
+    sentiment_score = Column(Float, default=0.0)
+    topic_cluster = Column(String(100), nullable=True, index=True)
+    sanitized_text = Column(Text, nullable=False)
+    actionable_idea = Column(Text, nullable=True)
+    safety_passed = Column(Boolean, default=True)
+    privacy_cleansed = Column(Boolean, default=True)
+    created_at = Column(DateTime, default=utc_now, nullable=False, index=True)
+
+
+class PromptVersionMetric(Base):
+    __tablename__ = "prompt_version_metrics"
+
+    id = Column(String(36), primary_key=True, default=generate_uuid)
+    prompt_name = Column(String(100), nullable=False, index=True)  # e.g., ideator_prompt, cerita_narrative, mini_diorama
+    version = Column(String(50), nullable=False, index=True)
+    template_text = Column(Text, nullable=False)
+    provider = Column(String(50), nullable=False)
+    model = Column(String(100), nullable=False)
+    total_invocations = Column(Integer, default=0)
+    avg_qc_score = Column(Float, default=0.0)
+    avg_repair_count = Column(Float, default=0.0)
+    avg_cost_usd = Column(Float, default=0.0)
+    avg_engagement_rate = Column(Float, default=0.0)
+    avg_share_rate = Column(Float, default=0.0)
+    publish_success_rate = Column(Float, default=1.0)
+    is_active = Column(Boolean, default=True)
+    created_at = Column(DateTime, default=utc_now, nullable=False)
+    updated_at = Column(DateTime, default=utc_now, onupdate=utc_now, nullable=False)
+
+
+class ModelPerformanceMetric(Base):
+    __tablename__ = "model_performance_metrics"
+
+    id = Column(String(36), primary_key=True, default=generate_uuid)
+    provider = Column(String(50), nullable=False, index=True)
+    model_name = Column(String(100), nullable=False, index=True)
+    task_type = Column(String(50), nullable=False)  # text_generation, image_generation, video_generation, reasoning
+    total_calls = Column(Integer, default=0)
+    successful_calls = Column(Integer, default=0)
+    failed_calls = Column(Integer, default=0)
+    avg_latency_seconds = Column(Float, default=0.0)
+    avg_cost_per_call_usd = Column(Float, default=0.0)
+    avg_qc_score = Column(Float, default=0.0)
+    repair_rate = Column(Float, default=0.0)
+    created_at = Column(DateTime, default=utc_now, nullable=False)
+    updated_at = Column(DateTime, default=utc_now, onupdate=utc_now, nullable=False)
+
+
+class AutonomyLog(Base):
+    __tablename__ = "autonomy_logs"
+
+    id = Column(String(36), primary_key=True, default=generate_uuid)
+    previous_level = Column(String(30), nullable=False)
+    new_level = Column(String(30), nullable=False)
+    action_type = Column(String(50), nullable=False)  # MANUAL_CHANGE, AUTO_DOWNGRADE, MATURITY_RECOMMENDATION, ADMIN_APPROVE, ADMIN_DECLINE, ROLLBACK
+    trigger_reason = Column(Text, nullable=False)
+    maturity_score = Column(Float, default=0.0)
+    strategy_confidence = Column(Float, default=0.0)
+    changed_by = Column(String(50), default="ADMIN")  # ADMIN, SYSTEM_SAFETY_MONITOR
+    details = Column(JSON, nullable=True, default=dict)
+    created_at = Column(DateTime, default=utc_now, nullable=False, index=True)
+
+
 # Index gabungan untuk query performa
 Index("idx_jobs_pilar_status", Job.pilar, Job.status)
 Index("idx_qc_content_iteration", QCRecord.content_id, QCRecord.iteration_number)
 Index("idx_receipts_content_platform", PublishingReceipt.content_id, PublishingReceipt.platform)
+Index("idx_knowledge_category_status", KnowledgeItem.category, KnowledgeItem.status)
+Index("idx_ltm_pilar_created", LongTermMemoryItem.pilar, LongTermMemoryItem.created_at)
+

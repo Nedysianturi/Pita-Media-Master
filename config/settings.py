@@ -92,6 +92,16 @@ class Settings(BaseSettings):
         p.mkdir(parents=True, exist_ok=True)
         return p
 
+    # 8. Learning Intelligence & Autonomy Settings
+    AUTONOMY_LEVEL: str = Field(default="OBSERVE", description="OBSERVE, RECOMMEND, ASSISTED_AUTO, CONTROLLED_AUTO")
+    MIN_POSTS_FOR_LEARNING: int = Field(default=10, description="Minimum total valid posts before generating strategic recommendations")
+    MIN_POSTS_PER_PILLAR: int = Field(default=3, description="Minimum posts per pillar before adjusting pillar distribution")
+    MIN_EXPERIMENT_SAMPLE: int = Field(default=5, description="Minimum completed experiments before applying variant patterns")
+    MIN_DAYS_OF_DATA: int = Field(default=7, description="Minimum days of historical data window")
+    MIN_CONFIDENCE_FOR_AUTO_CHANGE: float = Field(default=0.75, description="Minimum confidence score (0.0-1.0) to recommend/assist auto changes")
+    MAX_STRATEGY_DEVIATION_PERCENT: float = Field(default=15.0, description="Max allowed single-cycle deviation percent for pillar weights in assisted auto")
+    AUTO_DOWNGRADE_ERROR_RATE_THRESHOLD: float = Field(default=0.25, description="Error rate threshold (25%) that triggers automatic autonomy downgrade")
+
     @property
     def processed_media_dir(self) -> Path:
         p = self.storage_dir / "processed"
