@@ -36,7 +36,6 @@ class FacebookClient:
     async def get_effective_page_token(self, client: httpx.AsyncClient) -> str:
         """
         Mendapatkan Page Access Token yang valid untuk Page ID target.
-        Jika token di .env adalah User Token, otomatis membaca /me/accounts untuk mendapatkan Page Token.
         """
         if self._cached_page_token:
             return self._cached_page_token
@@ -44,18 +43,28 @@ class FacebookClient:
         if not self.access_token:
             return ""
 
+        # 1. Coba ambil token khusus halaman via /{page_id}?fields=access_token
         try:
-            url = f"{self.base_url}/me/accounts?access_token={self.access_token}"
-            res = await client.get(url, timeout=10.0)
-            if res.status_code == 200:
-                data = res.json()
+            url_page = f"{self.base_url}/{self.page_id}?fields=access_token&access_token={self.access_token}"
+            res_page = await client.get(url_page, timeout=10.0)
+            if res_page.status_code == 200:
+                p_tok = res_page.json().get("access_token")
+                if p_tok:
+                    self._cached_page_token = p_tok
+                    return self._cached_page_token
+        except Exception:
+            pass
+
+        # 2. Coba cari di /me/accounts
+        try:
+            url_acc = f"{self.base_url}/me/accounts?access_token={self.access_token}"
+            res_acc = await client.get(url_acc, timeout=10.0)
+            if res_acc.status_code == 200:
+                data = res_acc.json()
                 for p in data.get("data", []):
                     if str(p.get("id")) == str(self.page_id) and p.get("access_token"):
                         self._cached_page_token = p.get("access_token")
                         return self._cached_page_token
-                    # Jika tidak cocok spesifik tapi ada halaman pertama
-                    if not self._cached_page_token and p.get("access_token"):
-                        self._cached_page_token = p.get("access_token")
         except Exception:
             pass
 
