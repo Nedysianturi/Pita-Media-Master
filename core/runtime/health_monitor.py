@@ -25,14 +25,15 @@ class CredentialHealthMonitor:
         Inspect Meta Access Token validity and expiration using debug_token or /me.
         Does not crash if offline or if token has issues.
         """
-        token = os.getenv("META_PAGE_ACCESS_TOKEN") or os.getenv("META_ACCESS_TOKEN")
+        from config.settings import settings
+        token = settings.FB_PAGE_ACCESS_TOKEN or os.getenv("META_PAGE_ACCESS_TOKEN") or os.getenv("META_ACCESS_TOKEN")
         if not token:
             return {"status": "MISSING", "message": "Meta Access Token is not set."}
 
         try:
-            # We check token validity by calling /me?fields=id,name
+            version = getattr(settings, "FB_API_VERSION", "v26.0")
             resp = requests.get(
-                "https://graph.facebook.com/v19.0/me",
+                f"https://graph.facebook.com/{version}/me",
                 params={"access_token": token, "fields": "id,name"},
                 timeout=10
             )
@@ -81,7 +82,7 @@ class CredentialHealthMonitor:
                 "📌 *Instruksi Pembaruan Token:*\n"
                 "1. Buka Meta for Developers > Graph API Explorer\n"
                 "2. Generate Page Access Token baru dengan permission: `pages_manage_posts`, `pages_read_engagement`\n"
-                "3. Buka file `.env` di folder Pita Media dan perbarui `META_PAGE_ACCESS_TOKEN`\n"
+                "3. Buka file `.env` di folder Pita Media dan perbarui `FB_PAGE_ACCESS_TOKEN`\n"
                 "4. Kirim `/resume` di bot Telegram ini atau restart daemon.\n\n"
                 "ℹ️ _Job publishing saat ini diubah statusnya menjadi WAITING agar tidak gagal total._"
             )
@@ -93,18 +94,19 @@ class CredentialHealthMonitor:
 
     def check_gemini_health(self) -> Dict[str, Any]:
         """Verify Gemini API availability."""
-        api_key = os.getenv("GEMINI_API_KEY")
+        from config.settings import settings
+        api_key = settings.GEMINI_API_KEY or os.getenv("GEMINI_API_KEY")
         if not api_key:
             return {"status": "MISSING", "message": "GEMINI_API_KEY is missing."}
 
-        model = os.getenv("GEMINI_MODEL", "gemini-3.8-flash")
+        model = getattr(settings, "GEMINI_MODEL", "gemini-3.6-flash") or "gemini-3.6-flash"
         try:
-            url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}?key={api_key}"
+            url = f"https://generativelanguage.googleapis.com/v1beta/models?key={api_key}"
             resp = requests.get(url, timeout=10)
             if resp.status_code == 200:
                 self.gemini_status["valid"] = True
                 self.gemini_status["consecutive_errors"] = 0
-                return {"status": "PASS", "message": f"Model {model} available"}
+                return {"status": "PASS", "message": f"Model pool available (Primary: {model})"}
             elif resp.status_code == 429:
                 return {"status": "RATE_LIMITED", "message": "Gemini rate limited (429). Will rotate model pool."}
             else:

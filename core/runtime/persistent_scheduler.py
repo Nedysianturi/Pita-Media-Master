@@ -104,9 +104,9 @@ class PersistentScheduler:
 
             if job:
                 # Check frequency governor interval
-                allowed, wait_sec = await frequency_governor.is_posting_allowed(session)
+                allowed, wait_sec = await frequency_governor.can_publish_now(session, platform="facebook")
                 if not allowed:
-                    logger.debug(f"Pacing cooldown active. Waiting {wait_sec:.0f}s before next post.")
+                    logger.debug(f"Pacing cooldown active. Waiting {wait_sec or 0}s before next post.")
                     return
 
                 logger.info(f"PersistentScheduler dispatching Job {job.id} (#{job.pilar})...")
