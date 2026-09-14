@@ -38,7 +38,7 @@ class Settings(BaseSettings):
     # 3. Facebook Fanspage / Meta Graph API
     FB_PAGE_ID: str = Field(default="", description="Facebook Fanspage ID")
     FB_PAGE_ACCESS_TOKEN: str = Field(default="", description="Facebook Page Access Token")
-    FB_API_VERSION: str = Field(default="v21.0", description="Meta Graph API Version")
+    FB_API_VERSION: str = Field(default="v26.0", description="Meta Graph API Version")
 
     # 4. Storage & Media
     STORAGE_PATH: str = Field(default="storage")

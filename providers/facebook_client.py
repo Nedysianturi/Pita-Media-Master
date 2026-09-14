@@ -22,9 +22,9 @@ class FacebookClient:
         access_token: Optional[str] = None,
         api_version: Optional[str] = None,
     ):
-        self.page_id = page_id or settings.FB_PAGE_ID
-        self.access_token = access_token or settings.FB_PAGE_ACCESS_TOKEN
-        self.api_version = api_version or settings.FB_API_VERSION or "v21.0"
+        self.page_id = page_id if page_id is not None else settings.FB_PAGE_ID
+        self.access_token = access_token if access_token is not None else settings.FB_PAGE_ACCESS_TOKEN
+        self.api_version = api_version if api_version is not None else (settings.FB_API_VERSION or "v26.0")
         self.base_url = f"https://graph.facebook.com/{self.api_version}"
         self._cached_page_token: Optional[str] = None
 
