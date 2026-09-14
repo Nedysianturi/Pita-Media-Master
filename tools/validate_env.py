@@ -137,6 +137,28 @@ def check_env():
     else:
         print(f"   [+] Terkonfigurasi: {mask_secret(dash_key)}")
 
+    # 6. Periksa FACEBOOK FANSPAGE (Opsional/Auto-Publish)
+    fb_page_id = env_vars.get("FB_PAGE_ID", "").strip()
+    fb_token = env_vars.get("FB_PAGE_ACCESS_TOKEN", "").strip()
+    print("\n6. Facebook Fanspage Integration (Meta Graph API):")
+    if fb_page_id and fb_token and fb_token != "your_facebook_page_access_token_here":
+        print(f"   [+] FB_PAGE_ID Terdeteksi: {mask_secret(fb_page_id)}")
+        print(f"   [+] FB_PAGE_ACCESS_TOKEN Terdeteksi: {mask_secret(fb_token)}")
+        # Cek validitas token ke Graph API
+        try:
+            url = f"https://graph.facebook.com/v21.0/{fb_page_id}?fields=id,name&access_token={fb_token}"
+            res = httpx.get(url, timeout=10.0)
+            if res.status_code == 200:
+                page_data = res.json()
+                print(f"   [+] Koneksi Facebook Fanspage: BERHASIL! Terhubung ke Halaman: '{page_data.get('name')}' (ID: {page_data.get('id')})")
+            else:
+                err_body = res.json().get('error', {}).get('message', res.text)
+                print(f"   [!] Token Facebook belum aktif atau salah permission: {err_body}")
+        except Exception as e:
+            print(f"   [!] Gagal memvalidasi token Facebook: {e}")
+    else:
+        print("   [i] FB_PAGE_ID / FB_PAGE_ACCESS_TOKEN belum diisi (Sistem saat ini berjalan dalam mode Mock Publisher).")
+
     print("\n" + "=" * 60)
     if all_ok:
         print("[+] SEMUA KONFIGURASI UTAMA .env DINYATAKAN VALID & SIAP DIGUNAKAN!")

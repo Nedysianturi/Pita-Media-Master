@@ -35,7 +35,12 @@ class Settings(BaseSettings):
     TELEGRAM_ADMIN_IDS_RAW: str = Field(default="", alias="TELEGRAM_ADMIN_IDS")
     TELEGRAM_ALERT_CHAT_ID: str = Field(default="")
 
-    # 3. Storage & Media
+    # 3. Facebook Fanspage / Meta Graph API
+    FB_PAGE_ID: str = Field(default="", description="Facebook Fanspage ID")
+    FB_PAGE_ACCESS_TOKEN: str = Field(default="", description="Facebook Page Access Token")
+    FB_API_VERSION: str = Field(default="v21.0", description="Meta Graph API Version")
+
+    # 4. Storage & Media
     STORAGE_PATH: str = Field(default="storage")
     FFMPEG_BINARY_PATH: str = Field(default="")
     SIGNATURE_TEXT: str = Field(default="Pita Waktu")
