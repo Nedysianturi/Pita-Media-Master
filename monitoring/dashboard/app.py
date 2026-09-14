@@ -153,7 +153,11 @@ async def get_dashboard_stats(_: bool = Depends(verify_dashboard_access)):
         )
         recent_pubs = []
         for pub, title, pilar, caption, media_paths in recent_pubs_res.all():
-            preview_url = f"/api/media/{Path(media_paths[0]).name}" if media_paths and len(media_paths) > 0 else ""
+            m_list = []
+            if media_paths:
+                for mp in media_paths:
+                    m_list.append(f"/api/media/{Path(mp).name}")
+            preview_url = m_list[0] if m_list else ""
             is_sim = (pub.platform == "mock") or ("mock" in (pub.post_url or "")) or ("dry_run" in (pub.post_url or "")) or ("pita-media.mock" in (pub.post_url or ""))
             recent_pubs.append({
                 "id": pub.id,
@@ -167,6 +171,7 @@ async def get_dashboard_stats(_: bool = Depends(verify_dashboard_access)):
                 "verification_hash": pub.verification_hash or "-",
                 "published_at": pub.published_at.strftime("%Y-%m-%d %H:%M") if pub.published_at else "-",
                 "preview_url": preview_url,
+                "media_urls": m_list,
                 "is_simulated": is_sim
             })
 
@@ -1208,8 +1213,8 @@ async def serve_dashboard(_: bool = Depends(verify_dashboard_access)):
 
             <div style="display:flex; gap:16px; margin-bottom:16px; align-items: flex-start;">
                 <div id="prev-media-box" style="width: 140px; height: 140px; border-radius: 12px; background: rgba(255,255,255,0.04); border: 1px solid var(--border); overflow: hidden; display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
-                    <img id="prev-img" src="" style="width: 100%; height: 100%; object-fit: cover; display: none;" onerror="this.style.display='none'; document.getElementById('prev-fallback-icon').style.display='block';">
-                    <div id="prev-fallback-icon" style="font-size: 2.2rem;">📘</div>
+                    <img id="prev-img" src="" style="width: 100%; height: 100%; object-fit: cover; display: none;" onerror="this.style.display='none'; document.getElementById('prev-fallback-icon').style.display='flex';">
+                    <div id="prev-fallback-icon" style="font-size: 2.2rem; display: flex; align-items: center; justify-content: center; width: 100%; height: 100%;">📘</div>
                 </div>
                 <div style="flex:1;">
                     <div id="prev-pilar-badge" style="margin-bottom: 6px;"></div>
@@ -1217,6 +1222,12 @@ async def serve_dashboard(_: bool = Depends(verify_dashboard_access)):
                     <div style="font-size: 0.75rem; color: var(--text-muted); margin-bottom: 4px;">Dipublikasikan: <span id="prev-date" style="color:var(--text-main);">-</span></div>
                     <div style="font-size: 0.75rem; color: var(--text-muted);">Status: <span id="prev-status" style="color:var(--accent-emerald); font-weight: 600;">🟢 VERIFIED</span></div>
                 </div>
+            </div>
+
+            <!-- Slide Gallery in Modal -->
+            <div id="prev-carousel-gallery" style="display:none; margin-bottom: 14px;">
+                <label class="form-label" style="font-size: 0.78rem; font-weight: 700; margin-bottom: 6px;">Slide Visual Karusel (Klik untuk perbesar):</label>
+                <div id="prev-slides-row" style="display: flex; gap: 8px; overflow-x: auto; padding-bottom: 6px;"></div>
             </div>
 
             <div class="form-group">
@@ -1268,21 +1279,24 @@ async def serve_dashboard(_: bool = Depends(verify_dashboard_access)):
             if (tabId === 'settings') fetchVersions();
         }}
 
+        // --- DASHBOARD POLLING & REALTIME METRICS ---
         async function pollStats() {{
             try {{
                 const res = await fetch('/api/stats');
                 const d = await res.json();
-                document.getElementById('metric-published').innerText = d.recent_publications ? d.recent_publications.length : 0;
-                document.getElementById('metric-pending').innerText = (d.job_stats && d.job_stats.PENDING !== undefined) ? d.job_stats.PENDING : 0;
-                document.getElementById('metric-cost').innerText = '$' + (d.cost_metrics ? d.cost_metrics.daily_spent.toFixed(2) : '0.00');
-                document.getElementById('metric-providers').innerText = d.active_providers_count || 3;
                 
-                const getPilarIcon = (pilar) => {{
-                    const pil = String(pilar).toLowerCase();
-                    if (pil.includes('waktu')) return '⏳';
-                    if (pil.includes('cerita')) return '📖';
-                    if (pil.includes('transformasi')) return '✨';
-                    if (pil.includes('refleksi')) return '🪞';
+                document.getElementById('metric-published').innerText = d.total_contents || 0;
+                document.getElementById('metric-queue').innerText = (d.job_stats.PENDING || 0) + (d.job_stats.PROCESSING || 0);
+                document.getElementById('metric-cost').innerText = '$' + (d.cost_metrics ? d.cost_metrics.daily_spend_usd.toFixed(2) : '0.00');
+                if (document.getElementById('metric-providers')) {{
+                    document.getElementById('metric-providers').innerText = d.active_providers_count || 1;
+                }}
+
+                const getPilarIcon = (p) => {{
+                    if (p.includes('waktu')) return '⏳';
+                    if (p.includes('cerita')) return '📖';
+                    if (p.includes('transformasi')) return '✨';
+                    if (p.includes('refleksi')) return '🪞';
                     return '🎬';
                 }};
 
@@ -1304,16 +1318,30 @@ async def serve_dashboard(_: bool = Depends(verify_dashboard_access)):
                 document.getElementById('overview-pubs-tbody').innerHTML = d.recent_publications.map(p => {{
                     const icon = getPilarIcon(p.pilar || '');
                     const platBadge = getPlatformBadge(p.platform || '');
-                    const isVerified = p.status === 'VERIFIED' || p.status === 'PUBLISHED' || p.status === 'SUCCESS';
-                    const statusColor = isVerified ? '#34D399' : '#FBBF24';
-                    const statusBg = isVerified ? 'rgba(16,185,129,0.12)' : 'rgba(245,158,11,0.12)';
-                    const statusBorder = isVerified ? 'rgba(16,185,129,0.3)' : 'rgba(245,158,11,0.3)';
                     const isSim = p.is_simulated || (p.post_url && (p.post_url.includes('.mock') || p.post_url.includes('dry_run')));
+                    const isFailed = p.status === 'FAILED';
+                    
+                    let statusLabel = '🟢 LIVE TERBIT';
+                    let statusColor = '#34D399';
+                    let statusBg = 'rgba(16,185,129,0.12)';
+                    let statusBorder = 'rgba(16,185,129,0.3)';
+
+                    if (isFailed) {{
+                        statusLabel = '🔴 GAGAL';
+                        statusColor = '#EF4444';
+                        statusBg = 'rgba(239,68,68,0.12)';
+                        statusBorder = 'rgba(239,68,68,0.3)';
+                    }} else if (isSim) {{
+                        statusLabel = '⚡ SIMULASI (Dry Run)';
+                        statusColor = '#60A5FA';
+                        statusBg = 'rgba(96,165,250,0.12)';
+                        statusBorder = 'rgba(96,165,250,0.3)';
+                    }}
                     
                     return `
                     <tr class="table-row-hover">
                         <td style="width: 50px;">
-                            <div class="media-thumb-container">
+                            <div class="media-thumb-container" onclick="openPostPreview('${{p.id}}')" style="cursor:pointer;" title="Klik untuk pratinjau">
                                 ${{p.preview_url ? `<img src="${{p.preview_url}}" class="media-thumb-img" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">` : ''}}
                                 <div class="media-fallback-badge" style="${{p.preview_url ? 'display:none;' : 'display:flex;'}}">
                                     ${{icon}}
@@ -1321,20 +1349,20 @@ async def serve_dashboard(_: bool = Depends(verify_dashboard_access)):
                             </div>
                         </td>
                         <td>
-                            <div style="font-weight: 700; color: var(--text-main); font-size: 0.88rem; line-height: 1.35;">${{p.title}}</div>
+                            <div style="font-weight: 700; color: var(--text-main); font-size: 0.88rem; line-height: 1.35; cursor:pointer;" onclick="openPostPreview('${{p.id}}')">${{p.title}}</div>
                             <div style="font-size: 0.73rem; color: var(--text-muted); margin-top: 3px;">Dipublikasikan: ${{p.published_at || 'Baru Saja'}}</div>
                         </td>
                         <td><span class="pilar-pill">#${{p.pilar || 'pita_waktu'}}</span></td>
                         <td>${{platBadge}}</td>
                         <td>
                             <span class="status-indicator-badge" style="color:${{statusColor}}; background:${{statusBg}}; border:1px solid ${{statusBorder}};">
-                                <span class="pulse-dot" style="background:${{statusColor}};"></span> ${{p.status}}
+                                <span class="pulse-dot" style="background:${{statusColor}};"></span> ${{statusLabel}}
                             </span>
                         </td>
                         <td>
                             ${{isSim ? 
                                 `<button onclick="openPostPreview('${{p.id}}')" class="btn btn-outline" style="font-size:0.75rem; padding: 5px 12px; border-radius: 6px; border-color: rgba(99,102,241,0.4); color: #818cf8; cursor:pointer;">👁️ Pratinjau Post</button>` : 
-                                (p.post_url && p.post_url !== '#' ? `<a href="${{p.post_url}}" target="_blank" class="btn btn-primary" style="font-size:0.75rem; padding: 5px 12px; border-radius: 6px;">↗ Buka Post</a>` : `<span style="color:var(--text-muted); font-size:0.75rem;">-</span>`)
+                                (p.post_url && p.post_url !== '#' && !isFailed ? `<a href="${{p.post_url}}" target="_blank" class="btn btn-primary" style="font-size:0.75rem; padding: 5px 12px; border-radius: 6px;">↗ Buka Post</a>` : `<button onclick="openPostPreview('${{p.id}}')" class="btn btn-outline" style="font-size:0.75rem; padding: 5px 12px; border-radius: 6px;">👁️ Detail</button>`)
                             }}
                         </td>
                     </tr>
@@ -1352,7 +1380,18 @@ async def serve_dashboard(_: bool = Depends(verify_dashboard_access)):
             document.getElementById('prev-title').innerText = p.title || 'Tanpa Judul';
             document.getElementById('prev-pilar-badge').innerHTML = `<span class="pilar-pill">#${{p.pilar || 'pita_waktu'}}</span>`;
             document.getElementById('prev-date').innerText = p.published_at || '-';
-            document.getElementById('prev-status').innerText = '🟢 ' + (p.status || 'VERIFIED');
+            
+            const isSim = p.is_simulated || (p.post_url && (p.post_url.includes('.mock') || p.post_url.includes('dry_run')));
+            const isFailed = p.status === 'FAILED';
+            
+            if (isFailed) {{
+                document.getElementById('prev-status').innerHTML = '<span style="color:#EF4444;">🔴 GAGAL</span>';
+            }} else if (isSim) {{
+                document.getElementById('prev-status').innerHTML = '<span style="color:#60A5FA;">⚡ SIMULASI (Dry Run - Tersimpan Lokal)</span>';
+            }} else {{
+                document.getElementById('prev-status').innerHTML = '<span style="color:#10B981;">🟢 LIVE TERBIT (Facebook Fanspage)</span>';
+            }}
+
             document.getElementById('prev-caption').innerText = p.caption || '(Tidak ada caption tersimpan)';
             document.getElementById('prev-hash').innerText = (p.verification_hash || '-').slice(0, 24) + '...';
             document.getElementById('prev-plat-name').innerText = 'Platform: ' + (p.platform ? p.platform.toUpperCase() : 'FACEBOOK');

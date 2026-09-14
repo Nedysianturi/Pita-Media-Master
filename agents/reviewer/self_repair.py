@@ -4,12 +4,42 @@ Menjalankan loop perbaikan otomatis ketika skor QC menghasilkan status REPAIR_RE
 Menyimpan riwayat diff sebelum dan sesudah perbaikan, lalu menguji ulang.
 """
 
+import re
 from typing import Dict, Any, Tuple, Optional
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from providers.gemini_client import gemini_client
 from agents.creator.ideator import ContentIdea
 from config.settings import settings
+
+
+def clean_ai_caption_fluff(text: str) -> str:
+    """
+    Membersihkan teks pembuka/pengantar percakapan AI seperti:
+    - 'Berikut adalah hasil perbaikan...'
+    - 'Tentu, ini naskah yang telah diperbaiki...'
+    - 'Catatan QC:...'
+    sehingga hanya menyisakan teks konten / narasi murni untuk media sosial.
+    """
+    if not text:
+        return ""
+    
+    # Hapus baris pengantar AI di awal
+    patterns = [
+        r"^(?:berikut|tentu|ini|hasil|catatan|naskah|teks)[^\n]*?(?:perbaikan|self-repair|qc|sesuai|instruksi|disempurnakan)[^\n]*?:?\s*\n+",
+        r"^\*?\*?(?:berikut adalah|ini adalah|hasil perbaikan|revisi)[^\n]*?\*?\*?:?\s*\n+",
+        r"^\[REPAIRED\]\s*",
+        r"^\"|\"$"
+    ]
+    
+    cleaned = text.strip()
+    for pat in patterns:
+        cleaned = re.sub(pat, "", cleaned, flags=re.IGNORECASE).strip()
+    
+    # Hapus catatan di bagian akhir jika ada catatan editor
+    cleaned = re.sub(r"\n\s*(?:catatan|note|perubahan yang dilakukan|diff):.*$", "", cleaned, flags=re.IGNORECASE | re.DOTALL).strip()
+    
+    return cleaned
 
 
 class SelfRepairEngine:
@@ -37,45 +67,51 @@ class SelfRepairEngine:
 
         # Lakukan perbaikan teks & prompt via Gemini
         repair_prompt = f"""
-        Lakukan perbaikan mandiri (Self-Repair) untuk konten '{pilar}' berikut:
+        Lakukan perbaikan mandiri untuk narasi konten '{pilar}' berikut:
         Judul: {old_title}
         Caption Saat Ini: {old_caption}
         Rencana Perbaikan QC: {repair_plan}
 
-        Instruksi Perbaikan:
-        - Jika pilar adalah pita_cerita: Pastikan caption berupa cerita utuh dengan panjang tepat 150-300 kata yang menyentuh.
-        - Perbaiki kelemahan yang disebutkan pada rencana perbaikan tanpa mengubah esensi ide dasar.
-        
-        Keluarkan teks caption baru yang telah disempurnakan.
+        ATURAN MUTLAK PERBAIKAN:
+        1. Kembalikan HANYA teks caption final murni yang siap dipublikasikan ke media sosial.
+        2. DILARANG KERAS menyertakan kalimat pengantar, salam pembuka, kata 'Berikut adalah hasil perbaikan', atau catatan editor AI apapun.
+        3. Jika pilar pita_cerita: Pastikan caption berupa cerita utuh dengan panjang 150-300 kata yang menyentuh.
+        4. Perbaiki kelemahan yang disebutkan pada rencana perbaikan tanpa mengubah esensi ide dasar.
         """
 
         if not self.gemini.is_configured():
-            new_caption = (
-                f"[REPAIRED] {old_caption}\n\n"
-                f"Catatan: Narasi telah disempurnakan dengan penekanan pada kedalaman karakter dan atmosfer yang lebih mendalam."
-            )
+            new_caption = old_caption
         else:
             new_caption = await self.gemini.generate_text(
                 prompt=repair_prompt,
-                system_instruction="Anda adalah Editor Ahli Perbaikan Konten Kreatif.",
+                system_instruction=(
+                    "Anda adalah Editor Ahli Konten Media Sosial Pita Media. "
+                    "Output Anda HANYA berupa teks caption final media sosial tanpa pengantar atau komentar apapun."
+                ),
                 db_session=db_session,
                 job_id=job_id,
             )
 
+        # Bersihkan fluff/meta percakapan jika ada
+        cleaned_caption = clean_ai_caption_fluff(new_caption)
+        if not cleaned_caption:
+            cleaned_caption = old_caption
+
         # Hitung diff ringkas
         diff_record = {
             "old_word_count": len(old_caption.split()),
-            "new_word_count": len(new_caption.split()),
+            "new_word_count": len(cleaned_caption.split()),
             "repair_plan_applied": repair_plan,
             "old_caption_preview": old_caption[:100] + "...",
-            "new_caption_preview": new_caption[:100] + "...",
+            "new_caption_preview": cleaned_caption[:100] + "...",
         }
 
         # Perbarui payload
         repaired_payload = dict(content_payload)
-        repaired_payload["caption"] = new_caption.strip()
+        repaired_payload["caption"] = cleaned_caption.strip()
 
         return repaired_payload, diff_record
 
 
 self_repair_engine = SelfRepairEngine()
+
