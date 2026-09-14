@@ -169,6 +169,8 @@ class TelegramC2Bot:
         return f"❓ Perintah `{cmd}` tidak dikenali. Ketik `/help` untuk bantuan."
 
     def handle_status_command(self, user_id: int, queue_stats: Dict[str, int], cost_metrics: Dict[str, Any]) -> str:
+        if not self.authenticate_user(user_id):
+            return "⛔ *AKSES DITOLAK*: ID Telegram Anda tidak terdaftar sebagai Admin."
         state_badge = "🚨 EMERGENCY STOPPED" if self.is_emergency_stopped else ("⏸️ PAUSED" if self.is_paused else "🟢 ACTIVE & RUNNING")
         q_lines = "\n".join([f"  • {k}: {v}" for k, v in queue_stats.items()]) or "  • Antrean kosong"
         
@@ -183,21 +185,29 @@ class TelegramC2Bot:
         )
 
     def handle_pause_command(self, user_id: int) -> str:
+        if not self.authenticate_user(user_id):
+            return "⛔ *AKSES DITOLAK*: ID Telegram Anda tidak terdaftar sebagai Admin."
         self.is_paused = True
         return "⏸️ *SISTEM DIJEDA*: Pengambilan job baru dari antrean telah ditangguhkan sementara."
 
     def handle_resume_command(self, user_id: int) -> str:
+        if not self.authenticate_user(user_id):
+            return "⛔ *AKSES DITOLAK*: ID Telegram Anda tidak terdaftar sebagai Admin."
         if self.is_emergency_stopped:
             return "⚠️ Sistem dalam kondisi *Emergency Stop*. Hapus kunci darurat terlebih dahulu."
         self.is_paused = False
         return "▶️ *SISTEM BERJALAN KEMBALI*: Worker aktif memproses antrean konten."
 
     def handle_emergency_stop_command(self, user_id: int) -> str:
+        if not self.authenticate_user(user_id):
+            return "⛔ *AKSES DITOLAK*: ID Telegram Anda tidak terdaftar sebagai Admin."
         self.is_emergency_stopped = True
         self.is_paused = True
         return "🚨 *EMERGENCY STOP DIAKTIFKAN*: Seluruh worker dan proses kreasi dihentikan seketika!"
 
     def handle_report_command(self, user_id: int, summary_data: Dict[str, Any]) -> str:
+        if not self.authenticate_user(user_id):
+            return "⛔ *AKSES DITOLAK*: ID Telegram Anda tidak terdaftar sebagai Admin."
         return (
             f"📊 *LAPORAN PERFORMA PITA MEDIA*\n"
             f"═══════════════════════════\n"
