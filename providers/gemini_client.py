@@ -4,6 +4,7 @@ Terintegrasi penuh dengan Centralized Gemini Rate Limiter (Jeda 15s Free Tier, C
 Smart 429 RetryInfo backoff, dan model murni dari .env tanpa hardcoding).
 """
 
+import asyncio
 import json
 import os
 import re
@@ -113,8 +114,20 @@ class GeminiClient:
                 except Exception as e:
                     err_msg = str(e)
 
-                    # Jika 429 RESOURCE_EXHAUSTED: Gunakan smart backoff dan retry model yang SAMA
+                    # Jika 429 RESOURCE_EXHAUSTED:
                     if "429" in err_msg or "RESOURCE_EXHAUSTED" in err_msg or "quota" in err_msg.lower():
+                        # Jika kuota harian model tersebut habis (PerDay / limit: 20), beralih ke model alternatif
+                        if "perday" in err_msg.lower() or "limit: 20" in err_msg:
+                            pool = ["gemini-3.6-flash", "gemini-3.7-flash", "gemini-3.8-flash", "gemini-flash-lite-latest", "gemini-3.5-flash"]
+                            next_models = [m for m in pool if m != target_model]
+                            if next_models and attempt < max_retries:
+                                next_model = next_models[(attempt - 1) % len(next_models)]
+                                logger.warning(f"Kuota harian untuk model '{target_model}' tercapai. Mengalihkan otomatis ke model alternatif '{next_model}'...")
+                                target_model = next_model
+                                attempt += 1
+                                await asyncio.sleep(2.0)
+                                continue
+
                         if attempt < max_retries:
                             await self.rate_limiter.handle_429_backoff(target_model, e, attempt)
                             attempt += 1
@@ -122,6 +135,21 @@ class GeminiClient:
                         else:
                             logger.error(f"Batas retry 429 ({max_retries}) tercapai untuk model '{target_model}'.")
                             raise RuntimeError(f"Gemini API 429 (Rate Limit Terlampaui setelah {max_retries} retry): {e}")
+
+                    # Jika 503 UNAVAILABLE / High Demand / 500 Internal Error: Tunggu sebentar lalu retry
+                    if "503" in err_msg or "UNAVAILABLE" in err_msg or "high demand" in err_msg.lower() or "500" in err_msg:
+                        if attempt < max_retries:
+                            wait_time = 3.0 * attempt + 1.0
+                            if attempt >= 2 and target_model != "gemini-3.6-flash":
+                                logger.warning(f"Endpoint '{target_model}' sedang sibuk. Beralih ke model cadangan 'gemini-3.6-flash'...")
+                                target_model = "gemini-3.6-flash"
+                            logger.warning(f"Gemini API 503/500 (High Demand): Menunggu {wait_time:.1f} detik sebelum mencoba kembali (Percobaan {attempt}/{max_retries})...")
+                            await asyncio.sleep(wait_time)
+                            attempt += 1
+                            continue
+                        else:
+                            logger.error(f"Batas retry 503/500 ({max_retries}) tercapai untuk model '{target_model}'.")
+                            raise RuntimeError(f"Gemini API 503 (Server Sibuk setelah {max_retries} retry): {e}")
 
                     # Jika error model tidak ditemukan (404)
                     if "404" in err_msg or "NOT_FOUND" in err_msg:

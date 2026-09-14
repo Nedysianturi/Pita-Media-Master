@@ -189,7 +189,7 @@ class ContentOrchestrator:
                     content_id=content_db.id,
                     content_payload=final_payload,
                     qc_verdict=final_verdict,
-                    platform="mock",
+                    platform="auto",
                     db_session=session,
                 )
 

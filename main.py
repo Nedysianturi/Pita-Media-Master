@@ -119,6 +119,8 @@ def main():
     single_parser = subparsers.add_parser("single", help="Eksekusi 1 siklus konten mandiri")
     single_parser.add_argument(
         "--pilar",
+        "--pillar",
+        dest="pilar",
         type=str,
         default="pita_cerita",
         choices=["pita_transformasi", "pita_mini", "pita_cerita", "pita_kreasi"],
