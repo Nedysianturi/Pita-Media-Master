@@ -620,103 +620,168 @@ async def serve_dashboard(_: bool = Depends(verify_dashboard_access)):
                 </div>
             </div>
 
-            <!-- 7. CREDENTIALS TAB -->
+            <!-- 7. CREDENTIALS TAB (UNIFIED SINGLE PANEL) -->
             <div id="tab-credentials" class="tab-pane">
-                <div class="card" style="margin-bottom: 20px;">
-                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+                <div class="card" style="margin-bottom: 24px;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; border-bottom: 1px solid var(--border); padding-bottom: 14px;">
                         <div>
-                            <div class="card-title" style="margin-bottom: 4px;">Central Encrypted Vault (Windows DPAPI + AES-256)</div>
-                            <p style="font-size: 0.8rem; color: var(--text-muted);">Kelola API Key AI & Token Akses Media Sosial secara aman. Kunci langsung dienkripsi di level OS tanpa pernah terekspos.</p>
+                            <div class="card-title" style="margin-bottom: 4px; font-size: 1.1rem; color: #60A5FA;">🔐 Manajemen Kredensial & API Key (Tersinkronisasi Otomatis)</div>
+                            <p style="font-size: 0.82rem; color: var(--text-muted);">Satu tempat untuk mengatur seluruh API Key AI, Token Meta, dan Bot Telegram. Perubahan langsung tersimpan ke file <code>.env</code> dan dienkripsi ke Windows Vault tanpa perlu mengulang input.</p>
                         </div>
-                        <button class="btn btn-outline" onclick="fetchCredentials(); fetchEnvConfig();">🔄 Refresh Vault</button>
-                    </div>
-                    <table>
-                        <thead>
-                            <tr>
-                                <th style="width: 26%;">Layanan & Deskripsi</th>
-                                <th style="width: 32%;">Masked Credential (Secret Vault)</th>
-                                <th style="width: 14%;">Status</th>
-                                <th style="width: 28%;">Aksi & Kontrol</th>
-                            </tr>
-                        </thead>
-                        <tbody id="credentials-tbody"></tbody>
-                    </table>
-                </div>
-
-                <!-- DIRECT .ENV EDITOR CARD -->
-                <div class="card" style="margin-top: 24px;">
-                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; border-bottom: 1px solid var(--border); padding-bottom: 12px;">
-                        <div>
-                            <div class="card-title" style="margin-bottom: 4px; font-size: 1.05rem; color: #60A5FA;">📝 Editor File .env Langsung (Sinkronisasi Otomatis)</div>
-                            <p style="font-size: 0.8rem; color: var(--text-muted);">Nilai yang diisi atau diedit di bawah ini akan <b>langsung tersimpan ke file <code>.env</code> di disk</b> saat Anda menekan tombol Simpan.</p>
+                        <div style="display: flex; gap: 10px;">
+                            <button class="btn btn-outline" onclick="fetchEnvConfig(true);" style="font-size: 0.85rem;">🔄 Refresh Data</button>
+                            <button class="btn btn-primary" onclick="saveEnvConfigDirect()" style="padding: 10px 24px; font-size: 0.88rem; font-weight: 700; background: linear-gradient(135deg, #10B981, #059669); box-shadow: 0 4px 14px rgba(16,185,129,0.3);">💾 Simpan Semua Kredensial (.env)</button>
                         </div>
-                        <button class="btn btn-primary" onclick="saveEnvConfigDirect()" style="padding: 10px 20px; font-size: 0.9rem; font-weight: 700; background: linear-gradient(135deg, #10B981, #059669); box-shadow: 0 4px 14px rgba(16,185,129,0.3);">💾 Simpan Langsung ke .env</button>
                     </div>
 
-                    <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 20px;">
-                        <!-- Col 1: AI & Telegram -->
-                        <div>
-                            <div style="font-weight: 700; font-size: 0.85rem; color: var(--accent-blue); margin-bottom: 12px;">1. AI Providers & Telegram Bot</div>
-                            <div class="form-group">
-                                <label class="form-label">GEMINI_API_KEY <span style="color:var(--accent-rose);">*</span></label>
-                                <div style="position:relative;">
-                                    <input type="password" id="env-gemini-key" class="form-control" placeholder="AIzaSy...">
-                                    <button type="button" onclick="toggleInputVisibility('env-gemini-key')" style="position:absolute; right:10px; top:50%; transform:translateY(-50%); background:none; border:none; color:var(--text-muted); cursor:pointer;">👁️</button>
-                                </div>
+                    <!-- 3 Logical Columns / Cards -->
+                    <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px;">
+                        
+                        <!-- Panel 1: AI Provider Keys -->
+                        <div style="background: rgba(255,255,255,0.02); border: 1px solid var(--border); border-radius: 8px; padding: 16px;">
+                            <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px;">
+                                <div style="font-weight: 700; font-size: 0.9rem; color: #60A5FA;">🤖 AI Providers</div>
+                                <span class="brand-badge">Generation & Reasoning</span>
                             </div>
+
+                            <!-- GEMINI_API_KEY -->
                             <div class="form-group">
-                                <label class="form-label">XAI_API_KEY (Opsional / Grok)</label>
-                                <div style="position:relative;">
-                                    <input type="password" id="env-xai-key" class="form-control" placeholder="xai-...">
-                                    <button type="button" onclick="toggleInputVisibility('env-xai-key')" style="position:absolute; right:10px; top:50%; transform:translateY(-50%); background:none; border:none; color:var(--text-muted); cursor:pointer;">👁️</button>
+                                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+                                    <label class="form-label" style="margin-bottom: 0;">GEMINI_API_KEY <span style="color:var(--accent-rose);">*</span></label>
+                                    <span id="status-gemini" style="font-size: 0.72rem; font-weight: 600; color: var(--text-muted);">● Menunggu Uji</span>
                                 </div>
-                            </div>
-                            <div class="form-group">
-                                <label class="form-label">TELEGRAM_BOT_TOKEN <span style="color:var(--accent-rose);">*</span></label>
-                                <div style="position:relative;">
-                                    <input type="password" id="env-telegram-token" class="form-control" placeholder="8059238085:AAFK...">
-                                    <button type="button" onclick="toggleInputVisibility('env-telegram-token')" style="position:absolute; right:10px; top:50%; transform:translateY(-50%); background:none; border:none; color:var(--text-muted); cursor:pointer;">👁️</button>
+                                <div style="position:relative; display: flex; gap: 6px;">
+                                    <div style="position:relative; flex: 1;">
+                                        <input type="password" id="env-gemini-key" class="form-control" placeholder="AIzaSy..." style="padding-right: 36px; font-size: 0.83rem;">
+                                        <button type="button" onclick="toggleInputVisibility('env-gemini-key')" style="position:absolute; right:8px; top:50%; transform:translateY(-50%); background:none; border:none; color:var(--text-muted); cursor:pointer;">👁️</button>
+                                    </div>
+                                    <button class="btn btn-outline" style="font-size: 0.75rem; padding: 6px 10px; white-space: nowrap;" onclick="testSingleCred('gemini', 'env-gemini-key', 'status-gemini')">🔍 Test</button>
                                 </div>
+                                <small style="font-size: 0.72rem; color: var(--text-muted);">Model: Gemini 2.5 Flash, Imagen 3, Veo</small>
                             </div>
-                            <div class="form-group">
-                                <label class="form-label">TELEGRAM_ADMIN_IDS (ID Telegram Anda)</label>
-                                <input type="text" id="env-telegram-admins" class="form-control" placeholder="308917129">
+
+                            <!-- XAI_API_KEY -->
+                            <div class="form-group" style="margin-top: 14px;">
+                                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+                                    <label class="form-label" style="margin-bottom: 0;">XAI_API_KEY (Grok / Cadangan)</label>
+                                    <span id="status-xai" style="font-size: 0.72rem; font-weight: 600; color: var(--text-muted);">● Menunggu Uji</span>
+                                </div>
+                                <div style="position:relative; display: flex; gap: 6px;">
+                                    <div style="position:relative; flex: 1;">
+                                        <input type="password" id="env-xai-key" class="form-control" placeholder="xai-..." style="padding-right: 36px; font-size: 0.83rem;">
+                                        <button type="button" onclick="toggleInputVisibility('env-xai-key')" style="position:absolute; right:8px; top:50%; transform:translateY(-50%); background:none; border:none; color:var(--text-muted); cursor:pointer;">👁️</button>
+                                    </div>
+                                    <button class="btn btn-outline" style="font-size: 0.75rem; padding: 6px 10px; white-space: nowrap;" onclick="testSingleCred('xai', 'env-xai-key', 'status-xai')">🔍 Test</button>
+                                </div>
+                                <small style="font-size: 0.72rem; color: var(--text-muted);">Secondary fallback jika kuota Gemini penuh</small>
                             </div>
                         </div>
 
-                        <!-- Col 2: Meta Graph API & Controls -->
-                        <div>
-                            <div style="font-weight: 700; font-size: 0.85rem; color: var(--accent-blue); margin-bottom: 12px;">2. Meta Graph API & Publisher</div>
+                        <!-- Panel 2: Meta / Social Media Platforms -->
+                        <div style="background: rgba(255,255,255,0.02); border: 1px solid var(--border); border-radius: 8px; padding: 16px;">
+                            <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px;">
+                                <div style="font-weight: 700; font-size: 0.9rem; color: #10B981;">📱 Meta & Social Platforms</div>
+                                <span class="brand-badge" style="border-color: rgba(16,185,129,0.3); color: #10B981;">Publishing</span>
+                            </div>
+
+                            <!-- FB_PAGE_ID -->
                             <div class="form-group">
                                 <label class="form-label">FB_PAGE_ID (Fanspage ID) <span style="color:var(--accent-rose);">*</span></label>
-                                <input type="text" id="env-fb-page-id" class="form-control" placeholder="1253340697871457">
+                                <input type="text" id="env-fb-page-id" class="form-control" placeholder="1253340697871457" style="font-size: 0.83rem;">
                             </div>
+
+                            <!-- FB_PAGE_ACCESS_TOKEN -->
                             <div class="form-group">
-                                <label class="form-label">FB_PAGE_ACCESS_TOKEN (Meta Page Token) <span style="color:var(--accent-rose);">*</span></label>
-                                <div style="position:relative;">
-                                    <input type="password" id="env-fb-token" class="form-control" placeholder="EAAXHI...">
-                                    <button type="button" onclick="toggleInputVisibility('env-fb-token')" style="position:absolute; right:10px; top:50%; transform:translateY(-50%); background:none; border:none; color:var(--text-muted); cursor:pointer;">👁️</button>
+                                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+                                    <label class="form-label" style="margin-bottom: 0;">FB_PAGE_ACCESS_TOKEN <span style="color:var(--accent-rose);">*</span></label>
+                                    <span id="status-fb" style="font-size: 0.72rem; font-weight: 600; color: var(--text-muted);">● Menunggu Uji</span>
+                                </div>
+                                <div style="position:relative; display: flex; gap: 6px;">
+                                    <div style="position:relative; flex: 1;">
+                                        <input type="password" id="env-fb-token" class="form-control" placeholder="EAAXHI..." style="padding-right: 36px; font-size: 0.83rem;">
+                                        <button type="button" onclick="toggleInputVisibility('env-fb-token')" style="position:absolute; right:8px; top:50%; transform:translateY(-50%); background:none; border:none; color:var(--text-muted); cursor:pointer;">👁️</button>
+                                    </div>
+                                    <button class="btn btn-outline" style="font-size: 0.75rem; padding: 6px 10px; white-space: nowrap;" onclick="testSingleCred('facebook', 'env-fb-token', 'status-fb')">🔍 Test</button>
+                                </div>
+                                <small style="font-size: 0.72rem; color: var(--text-muted);">Fanspage @Pitamediaid</small>
+                            </div>
+
+                            <!-- IG_ACCESS_TOKEN -->
+                            <div class="form-group">
+                                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+                                    <label class="form-label" style="margin-bottom: 0;">IG_ACCESS_TOKEN (Instagram)</label>
+                                    <span id="status-ig" style="font-size: 0.72rem; font-weight: 600; color: var(--text-muted);">● Menunggu Uji</span>
+                                </div>
+                                <div style="position:relative; display: flex; gap: 6px;">
+                                    <div style="position:relative; flex: 1;">
+                                        <input type="password" id="env-ig-token" class="form-control" placeholder="IG token..." style="padding-right: 36px; font-size: 0.83rem;">
+                                        <button type="button" onclick="toggleInputVisibility('env-ig-token')" style="position:absolute; right:8px; top:50%; transform:translateY(-50%); background:none; border:none; color:var(--text-muted); cursor:pointer;">👁️</button>
+                                    </div>
+                                    <button class="btn btn-outline" style="font-size: 0.75rem; padding: 6px 10px; white-space: nowrap;" onclick="testSingleCred('instagram', 'env-ig-token', 'status-ig')">🔍 Test</button>
                                 </div>
                             </div>
+
+                            <!-- THREADS_ACCESS_TOKEN -->
                             <div class="form-group">
-                                <label class="form-label">IG_ACCESS_TOKEN (Instagram Business)</label>
-                                <div style="position:relative;">
-                                    <input type="password" id="env-ig-token" class="form-control" placeholder="IG token...">
-                                    <button type="button" onclick="toggleInputVisibility('env-ig-token')" style="position:absolute; right:10px; top:50%; transform:translateY(-50%); background:none; border:none; color:var(--text-muted); cursor:pointer;">👁️</button>
+                                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+                                    <label class="form-label" style="margin-bottom: 0;">THREADS_ACCESS_TOKEN (Threads)</label>
+                                    <span id="status-threads" style="font-size: 0.72rem; font-weight: 600; color: var(--text-muted);">● Menunggu Uji</span>
                                 </div>
-                            </div>
-                            <div class="form-group">
-                                <label class="form-label">THREADS_ACCESS_TOKEN (Threads API)</label>
-                                <div style="position:relative;">
-                                    <input type="password" id="env-threads-token" class="form-control" placeholder="Threads token...">
-                                    <button type="button" onclick="toggleInputVisibility('env-threads-token')" style="position:absolute; right:10px; top:50%; transform:translateY(-50%); background:none; border:none; color:var(--text-muted); cursor:pointer;">👁️</button>
+                                <div style="position:relative; display: flex; gap: 6px;">
+                                    <div style="position:relative; flex: 1;">
+                                        <input type="password" id="env-threads-token" class="form-control" placeholder="Threads token..." style="padding-right: 36px; font-size: 0.83rem;">
+                                        <button type="button" onclick="toggleInputVisibility('env-threads-token')" style="position:absolute; right:8px; top:50%; transform:translateY(-50%); background:none; border:none; color:var(--text-muted); cursor:pointer;">👁️</button>
+                                    </div>
+                                    <button class="btn btn-outline" style="font-size: 0.75rem; padding: 6px 10px; white-space: nowrap;" onclick="testSingleCred('threads', 'env-threads-token', 'status-threads')">🔍 Test</button>
                                 </div>
                             </div>
                         </div>
+
+                        <!-- Panel 3: Telegram C2 Bot & Alerts -->
+                        <div style="background: rgba(255,255,255,0.02); border: 1px solid var(--border); border-radius: 8px; padding: 16px;">
+                            <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px;">
+                                <div style="font-weight: 700; font-size: 0.9rem; color: #F59E0B;">📡 Telegram C2 & Alerts</div>
+                                <span class="brand-badge" style="border-color: rgba(245,158,11,0.3); color: #F59E0B;">Command Bot</span>
+                            </div>
+
+                            <!-- TELEGRAM_BOT_TOKEN -->
+                            <div class="form-group">
+                                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+                                    <label class="form-label" style="margin-bottom: 0;">TELEGRAM_BOT_TOKEN <span style="color:var(--accent-rose);">*</span></label>
+                                    <span id="status-telegram" style="font-size: 0.72rem; font-weight: 600; color: var(--text-muted);">● Menunggu Uji</span>
+                                </div>
+                                <div style="position:relative; display: flex; gap: 6px;">
+                                    <div style="position:relative; flex: 1;">
+                                        <input type="password" id="env-telegram-token" class="form-control" placeholder="8059238085:AAFK..." style="padding-right: 36px; font-size: 0.83rem;">
+                                        <button type="button" onclick="toggleInputVisibility('env-telegram-token')" style="position:absolute; right:8px; top:50%; transform:translateY(-50%); background:none; border:none; color:var(--text-muted); cursor:pointer;">👁️</button>
+                                    </div>
+                                    <button class="btn btn-outline" style="font-size: 0.75rem; padding: 6px 10px; white-space: nowrap;" onclick="testSingleCred('telegram', 'env-telegram-token', 'status-telegram')">🔍 Test</button>
+                                </div>
+                                <small style="font-size: 0.72rem; color: var(--text-muted);">Bot @pitamediabot dari @BotFather</small>
+                            </div>
+
+                            <!-- TELEGRAM_ADMIN_IDS -->
+                            <div class="form-group" style="margin-top: 14px;">
+                                <label class="form-label">TELEGRAM_ADMIN_IDS (ID Admin Telegram Anda)</label>
+                                <input type="text" id="env-telegram-admins" class="form-control" placeholder="308917129" style="font-size: 0.83rem;">
+                                <small style="font-size: 0.72rem; color: var(--text-muted);">ID Telegram pemilik untuk otorisasi command</small>
+                            </div>
+
+                            <!-- TELEGRAM_ALERT_CHAT_ID -->
+                            <div class="form-group" style="margin-top: 14px;">
+                                <label class="form-label">TELEGRAM_ALERT_CHAT_ID (Chat ID Notifikasi)</label>
+                                <input type="text" id="env-telegram-alert-chat" class="form-control" placeholder="308917129" style="font-size: 0.83rem;">
+                                <small style="font-size: 0.72rem; color: var(--text-muted);">Tujuan pesan darurat, QC, dan laporan harian</small>
+                            </div>
+                        </div>
+
                     </div>
 
-                    <div style="display: flex; justify-content: flex-end; margin-top: 20px; padding-top: 14px; border-top: 1px solid var(--border);">
-                        <button class="btn btn-primary" onclick="saveEnvConfigDirect()" style="padding: 10px 24px; font-size: 0.9rem; font-weight: 700; background: linear-gradient(135deg, #10B981, #059669); box-shadow: 0 4px 14px rgba(16,185,129,0.3);">💾 Simpan Langsung ke .env</button>
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 24px; padding-top: 16px; border-top: 1px solid var(--border);">
+                        <div style="font-size: 0.8rem; color: var(--text-muted);">
+                            💡 <b>Tips:</b> Klik <b>🔍 Test</b> pada setiap baris untuk memverifikasi keaktifan token secara langsung sebelum menyimpan.
+                        </div>
+                        <button class="btn btn-primary" onclick="saveEnvConfigDirect()" style="padding: 11px 28px; font-size: 0.92rem; font-weight: 700; background: linear-gradient(135deg, #10B981, #059669); box-shadow: 0 4px 14px rgba(16,185,129,0.3);">💾 Simpan Semua Kredensial (.env)</button>
                     </div>
                 </div>
             </div>
@@ -873,38 +938,6 @@ async def serve_dashboard(_: bool = Depends(verify_dashboard_access)):
         </div>
     </div>
 
-    <!-- MODAL REPLACE CREDENTIAL -->
-    <div id="modal-replace-cred" class="modal-overlay">
-        <div class="modal-box">
-            <div class="modal-header">
-                <div class="modal-title" id="modal-cred-title">🔑 Ganti Kredensial / API Key</div>
-                <button onclick="closeReplaceCredModal()" style="background:none; border:none; color:var(--text-muted); font-size:1.3rem; cursor:pointer;">&times;</button>
-            </div>
-            <div class="form-group">
-                <label class="form-label">Nama Layanan</label>
-                <input type="text" id="modal-cred-service-display" class="form-control" readonly style="opacity:0.85; background:rgba(255,255,255,0.03);">
-                <input type="hidden" id="modal-cred-service-id">
-            </div>
-            <div class="form-group">
-                <label class="form-label">Nama Kunci (Key Identifier)</label>
-                <input type="text" id="modal-cred-key" class="form-control" readonly style="opacity:0.85; background:rgba(255,255,255,0.03);">
-            </div>
-            <div class="form-group">
-                <label class="form-label">Nilai Secret Baru (API Key / Access Token)</label>
-                <div style="position:relative;">
-                    <input type="password" id="modal-cred-value" class="form-control" placeholder="Tempel atau ketik API Key / Access Token baru di sini..." style="padding-right: 42px;">
-                    <button type="button" onclick="toggleCredVisibility()" style="position:absolute; right:10px; top:50%; transform:translateY(-50%); background:none; border:none; color:var(--text-muted); cursor:pointer; font-size:1.1rem;" title="Lihat / Sembunyikan">👁️</button>
-                </div>
-                <small style="color:var(--text-muted); font-size:0.75rem; margin-top:5px; display:block;">Nilai akan langsung dienkripsi menggunakan cipher Windows DPAPI ke dalam file `.vault.enc`.</small>
-            </div>
-            <div id="modal-cred-test-result" style="display:none; padding:10px 14px; border-radius:6px; font-size:0.82rem; margin-top:12px;"></div>
-            <div class="modal-actions">
-                <button class="btn btn-outline" onclick="closeReplaceCredModal()">Batal</button>
-                <button class="btn btn-outline" onclick="testModalCredential()" style="border-color:var(--accent-blue); color:#60A5FA;">🔍 Uji Koneksi Live</button>
-                <button class="btn btn-primary" onclick="saveCredentialFromModal()">💾 Simpan & Enkripsi</button>
-            </div>
-        </div>
-    </div>
 
     <!-- MODAL ADD PROVIDER -->
     <div id="modal-add-provider" class="modal-overlay">
@@ -965,7 +998,7 @@ async def serve_dashboard(_: bool = Depends(verify_dashboard_access)):
             if (tabId === 'queue') fetchQueue();
             if (tabId === 'receipts') fetchReceipts();
             if (tabId === 'providers') fetchProviders();
-            if (tabId === 'credentials') {{ fetchCredentials(); fetchEnvConfig(); }}
+            if (tabId === 'credentials') fetchEnvConfig();
             if (tabId === 'ab_testing') fetchExperiments();
             if (tabId === 'music') fetchMusic();
             if (tabId === 'qc') fetchQC();
@@ -1044,145 +1077,43 @@ async def serve_dashboard(_: bool = Depends(verify_dashboard_access)):
             `).join('');
         }}
 
-        async function fetchCredentials() {{
-            try {{
-                const res = await fetch('/api/credentials');
-                const d = await res.json();
-                document.getElementById('credentials-tbody').innerHTML = d.credentials.map(c => {{
-                    const isConfigured = c.is_configured;
-                    const statusBadge = isConfigured 
-                        ? '<span style="color:var(--accent-emerald); font-weight:700; font-size:0.75rem;">● CONFIGURED</span>'
-                        : '<span style="color:var(--accent-amber); font-weight:700; font-size:0.75rem;">● BELUM DIATUR</span>';
-                    const dispName = c.display_name || c.service_name;
-                    const pKey = c.primary_key || 'api_key';
-                    const maskedVal = c.masked_value || (c.credentials ? JSON.stringify(c.credentials) : '-');
+        async function testSingleCred(serviceName, inputId, statusSpanId) {{
+            const inputEl = document.getElementById(inputId);
+            const statusEl = document.getElementById(statusSpanId);
+            const tokenVal = inputEl ? inputEl.value.trim() : '';
 
-                    return `
-                    <tr>
-                        <td>
-                            <div style="font-weight:700; color:var(--text-main); font-size:0.9rem;">${{dispName}}</div>
-                            <div style="font-size:0.75rem; color:var(--text-muted); margin-top:2px;">${{c.description || ''}}</div>
-                        </td>
-                        <td>
-                            <div style="font-size:0.72rem; color:var(--text-muted); margin-bottom:3px;">Key ID: <code>${{pKey}}</code></div>
-                            <code style="background:rgba(255,255,255,0.06); padding:4px 8px; border-radius:4px; font-size:0.82rem; color:#A78BFA; display:inline-block;">${{maskedVal}}</code>
-                        </td>
-                        <td>${{statusBadge}}</td>
-                        <td style="white-space:nowrap;">
-                            <button class="btn btn-outline" style="font-size:0.75rem; padding:5px 10px; margin-right:6px;" onclick="testCred('${{c.service_name}}')">🔍 Test</button>
-                            <button class="btn btn-primary" style="font-size:0.75rem; padding:5px 12px;" onclick="openReplaceCredModal('${{c.service_name}}', '${{dispName}}', '${{pKey}}')">🔑 Ganti Key</button>
-                        </td>
-                    </tr>
-                    `;
-                }}).join('') || '<tr><td colspan="4" style="text-align:center; color:var(--text-muted);">Tidak ada kredensial.</td></tr>';
-            }} catch (e) {{ console.error(e); }}
-        }}
-
-        async function testCred(service) {{
-            showToast('Menguji koneksi ' + service.toUpperCase() + '...');
-            try {{
-                const res = await fetch('/api/credentials/test', {{
-                    method: 'POST',
-                    headers: {{ 'Content-Type': 'application/json' }},
-                    body: JSON.stringify({{ service_name: service }})
-                }});
-                const d = await res.json();
-                if (d.status === 'VALID') {{
-                    showToast('🟢 ' + service.toUpperCase() + ': ' + (d.message || 'Koneksi Valid'));
-                }} else {{
-                    showToast('🔴 ' + service.toUpperCase() + ' (' + d.status + '): ' + (d.message || 'Gagal'));
-                }}
-            }} catch (e) {{
-                showToast('Eror: ' + e.message);
-            }}
-        }}
-
-        function openReplaceCredModal(serviceId, displayName, primaryKey) {{
-            document.getElementById('modal-cred-service-id').value = serviceId;
-            document.getElementById('modal-cred-service-display').value = displayName;
-            document.getElementById('modal-cred-key').value = primaryKey;
-            document.getElementById('modal-cred-value').value = '';
-            document.getElementById('modal-cred-value').type = 'password';
-            document.getElementById('modal-cred-test-result').style.display = 'none';
-            document.getElementById('modal-replace-cred').style.display = 'flex';
-        }}
-
-        function closeReplaceCredModal() {{
-            document.getElementById('modal-replace-cred').style.display = 'none';
-        }}
-
-        function toggleCredVisibility() {{
-            const input = document.getElementById('modal-cred-value');
-            input.type = input.type === 'password' ? 'text' : 'password';
-        }}
-
-        async function testModalCredential() {{
-            const serviceId = document.getElementById('modal-cred-service-id').value;
-            const secretValue = document.getElementById('modal-cred-value').value.trim();
-            const resultBox = document.getElementById('modal-cred-test-result');
-
-            resultBox.style.display = 'block';
-            resultBox.style.background = 'rgba(59, 130, 246, 0.15)';
-            resultBox.style.color = '#60A5FA';
-            resultBox.style.border = '1px solid rgba(59, 130, 246, 0.4)';
-            resultBox.innerText = 'Menguji koneksi live ke ' + serviceId.toUpperCase() + '...';
-
-            try {{
-                const res = await fetch('/api/credentials/test', {{
-                    method: 'POST',
-                    headers: {{ 'Content-Type': 'application/json' }},
-                    body: JSON.stringify({{ service_name: serviceId, custom_token: secretValue || undefined }})
-                }});
-                const d = await res.json();
-                if (d.status === 'VALID') {{
-                    resultBox.style.background = 'rgba(16, 185, 129, 0.15)';
-                    resultBox.style.color = 'var(--accent-emerald)';
-                    resultBox.style.border = '1px solid rgba(16, 185, 129, 0.4)';
-                    resultBox.innerHTML = '🟢 <b>VALID:</b> ' + (d.message || 'Koneksi berhasil diverifikasi.');
-                }} else {{
-                    resultBox.style.background = 'rgba(239, 68, 68, 0.15)';
-                    resultBox.style.color = 'var(--accent-rose)';
-                    resultBox.style.border = '1px solid rgba(239, 68, 68, 0.4)';
-                    resultBox.innerHTML = '🔴 <b>' + d.status + ':</b> ' + (d.message || 'Gagal terhubung.');
-                }}
-            }} catch (e) {{
-                resultBox.style.background = 'rgba(239, 68, 68, 0.15)';
-                resultBox.style.color = 'var(--accent-rose)';
-                resultBox.innerText = 'Eror: ' + e.message;
-            }}
-        }}
-
-        async function saveCredentialFromModal() {{
-            const serviceId = document.getElementById('modal-cred-service-id').value;
-            const primaryKey = document.getElementById('modal-cred-key').value;
-            const secretValue = document.getElementById('modal-cred-value').value.trim();
-
-            if (!secretValue) {{
-                showToast('Nilai API Key / Token tidak boleh kosong.');
+            if (!tokenVal) {{
+                if (statusEl) statusEl.innerHTML = '<span style="color:var(--accent-amber);">● Belum Diisi</span>';
+                showToast('⚠️ Nilai token / key belum diisi.');
                 return;
             }}
 
-            showToast('Menyimpan & mengenkripsi ke DPAPI Vault...');
+            if (statusEl) statusEl.innerHTML = '<span style="color:var(--accent-blue);">⏳ Menguji...</span>';
+            showToast('Menguji koneksi ' + serviceName.toUpperCase() + '...');
+
             try {{
-                const res = await fetch('/api/credentials/set', {{
+                const res = await fetch('/api/credentials/test', {{
                     method: 'POST',
                     headers: {{ 'Content-Type': 'application/json' }},
                     body: JSON.stringify({{
-                        service_name: serviceId,
-                        credential_key: primaryKey,
-                        secret_value: secretValue
+                        service_name: serviceName,
+                        custom_token: tokenVal
                     }})
                 }});
                 const d = await res.json();
-                if (d.success) {{
-                    showToast('✅ ' + d.message);
-                    closeReplaceCredModal();
-                    fetchCredentials();
+                if (d.status === 'VALID') {{
+                    if (statusEl) statusEl.innerHTML = `<span style="color:var(--accent-emerald);">🟢 VALID (${{d.latency_ms || 0}}ms)</span>`;
+                    showToast('🟢 ' + serviceName.toUpperCase() + ': ' + (d.message || 'Koneksi Valid'));
+                }} else if (d.status === 'RATE_LIMITED') {{
+                    if (statusEl) statusEl.innerHTML = `<span style="color:var(--accent-amber);">🟡 RATE LIMITED</span>`;
+                    showToast('🟡 ' + serviceName.toUpperCase() + ': ' + (d.message || 'Limit'));
                 }} else {{
-                    showToast('Eror: ' + (d.detail || 'Gagal menyimpan kredensial.'));
+                    if (statusEl) statusEl.innerHTML = `<span style="color:var(--accent-rose);">🔴 ${{d.status}}</span>`;
+                    showToast('🔴 ' + serviceName.toUpperCase() + ' (' + d.status + '): ' + (d.message || 'Gagal'));
                 }}
             }} catch (e) {{
-                showToast('Eror: ' + e.message);
+                if (statusEl) statusEl.innerHTML = '<span style="color:var(--accent-rose);">🔴 Error</span>';
+                showToast('Eror jaringan: ' + e.message);
             }}
         }}
 
@@ -1240,7 +1171,7 @@ async def serve_dashboard(_: bool = Depends(verify_dashboard_access)):
             }}
         }}
 
-        async function fetchEnvConfig() {{
+        async function fetchEnvConfig(showToastMsg = false) {{
             try {{
                 const res = await fetch('/api/env');
                 const d = await res.json();
@@ -1249,26 +1180,50 @@ async def serve_dashboard(_: bool = Depends(verify_dashboard_access)):
                 if (document.getElementById('env-xai-key')) document.getElementById('env-xai-key').value = env.XAI_API_KEY || '';
                 if (document.getElementById('env-telegram-token')) document.getElementById('env-telegram-token').value = env.TELEGRAM_BOT_TOKEN || '';
                 if (document.getElementById('env-telegram-admins')) document.getElementById('env-telegram-admins').value = env.TELEGRAM_ADMIN_IDS || '';
+                if (document.getElementById('env-telegram-alert-chat')) document.getElementById('env-telegram-alert-chat').value = env.TELEGRAM_ALERT_CHAT_ID || env.TELEGRAM_ADMIN_IDS || '';
                 if (document.getElementById('env-fb-page-id')) document.getElementById('env-fb-page-id').value = env.FB_PAGE_ID || '';
                 if (document.getElementById('env-fb-token')) document.getElementById('env-fb-token').value = env.FB_PAGE_ACCESS_TOKEN || '';
                 if (document.getElementById('env-ig-token')) document.getElementById('env-ig-token').value = env.IG_ACCESS_TOKEN || '';
                 if (document.getElementById('env-threads-token')) document.getElementById('env-threads-token').value = env.THREADS_ACCESS_TOKEN || '';
+
+                const updateBadge = (val, spanId) => {{
+                    const el = document.getElementById(spanId);
+                    if (!el) return;
+                    if (val && val.trim() && !val.startsWith('mock_')) {{
+                        el.innerHTML = '<span style="color:var(--accent-emerald);">● Terisi (Siap Diuji)</span>';
+                    }} else {{
+                        el.innerHTML = '<span style="color:var(--accent-amber);">● Belum Diatur</span>';
+                    }}
+                }};
+
+                updateBadge(env.GEMINI_API_KEY, 'status-gemini');
+                updateBadge(env.XAI_API_KEY, 'status-xai');
+                updateBadge(env.FB_PAGE_ACCESS_TOKEN, 'status-fb');
+                updateBadge(env.IG_ACCESS_TOKEN, 'status-ig');
+                updateBadge(env.THREADS_ACCESS_TOKEN, 'status-threads');
+                updateBadge(env.TELEGRAM_BOT_TOKEN, 'status-telegram');
+
+                if (showToastMsg) {{
+                    showToast('✅ Data kredensial dimuat dari file .env');
+                }}
             }} catch (e) {{
                 console.error('Failed to load .env config:', e);
+                if (showToastMsg) showToast('Eror memuat data: ' + e.message);
             }}
         }}
 
         async function saveEnvConfigDirect() {{
             showToast('Menyimpan perubahan langsung ke file .env...');
             const updates = {{
-                GEMINI_API_KEY: document.getElementById('env-gemini-key').value.trim(),
-                XAI_API_KEY: document.getElementById('env-xai-key').value.trim(),
-                TELEGRAM_BOT_TOKEN: document.getElementById('env-telegram-token').value.trim(),
-                TELEGRAM_ADMIN_IDS: document.getElementById('env-telegram-admins').value.trim(),
-                FB_PAGE_ID: document.getElementById('env-fb-page-id').value.trim(),
-                FB_PAGE_ACCESS_TOKEN: document.getElementById('env-fb-token').value.trim(),
-                IG_ACCESS_TOKEN: document.getElementById('env-ig-token').value.trim(),
-                THREADS_ACCESS_TOKEN: document.getElementById('env-threads-token').value.trim()
+                GEMINI_API_KEY: document.getElementById('env-gemini-key') ? document.getElementById('env-gemini-key').value.trim() : '',
+                XAI_API_KEY: document.getElementById('env-xai-key') ? document.getElementById('env-xai-key').value.trim() : '',
+                TELEGRAM_BOT_TOKEN: document.getElementById('env-telegram-token') ? document.getElementById('env-telegram-token').value.trim() : '',
+                TELEGRAM_ADMIN_IDS: document.getElementById('env-telegram-admins') ? document.getElementById('env-telegram-admins').value.trim() : '',
+                TELEGRAM_ALERT_CHAT_ID: document.getElementById('env-telegram-alert-chat') ? document.getElementById('env-telegram-alert-chat').value.trim() : '',
+                FB_PAGE_ID: document.getElementById('env-fb-page-id') ? document.getElementById('env-fb-page-id').value.trim() : '',
+                FB_PAGE_ACCESS_TOKEN: document.getElementById('env-fb-token') ? document.getElementById('env-fb-token').value.trim() : '',
+                IG_ACCESS_TOKEN: document.getElementById('env-ig-token') ? document.getElementById('env-ig-token').value.trim() : '',
+                THREADS_ACCESS_TOKEN: document.getElementById('env-threads-token') ? document.getElementById('env-threads-token').value.trim() : ''
             }};
 
             try {{
@@ -1280,7 +1235,7 @@ async def serve_dashboard(_: bool = Depends(verify_dashboard_access)):
                 const d = await res.json();
                 if (d.success) {{
                     showToast('✅ ' + d.message);
-                    fetchCredentials();
+                    fetchEnvConfig(false);
                 }} else {{
                     showToast('Eror: ' + (d.detail || 'Gagal menyimpan .env'));
                 }}
