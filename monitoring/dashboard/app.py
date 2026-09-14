@@ -502,6 +502,104 @@ async def toggle_learning_pause(payload: Dict[str, Any], _: bool = Depends(verif
 async def serve_dashboard(_: bool = Depends(verify_dashboard_access)):
     app_mode = os.environ.get("APP_MODE", "DRY_RUN").upper()
 
+    # Pre-render initial data directly from SQLite DB so the page loads with zero lag
+    async with async_session_factory() as db:
+        pending_jobs = (await db.execute(select(func.count(Job.id)).where(Job.status == "PENDING"))).scalar() or 0
+        running_jobs = (await db.execute(select(func.count(Job.id)).where(Job.status == "PROCESSING"))).scalar() or 0
+        total_contents = (await db.execute(select(func.count(Content.id)))).scalar() or 0
+        
+        recent_pubs_res = await db.execute(
+            select(Content, Publication)
+            .outerjoin(Publication, Content.id == Publication.content_id)
+            .order_by(desc(Content.created_at))
+            .limit(20)
+        )
+        recent_pubs = []
+        tbody_rows = []
+        for content_obj, pub in recent_pubs_res.all():
+            m_list = []
+            if content_obj.media_paths:
+                for mp in content_obj.media_paths:
+                    m_list.append(f"/api/media/{Path(mp).name}")
+            preview_url = m_list[0] if m_list else ""
+
+            post_url = pub.post_url if pub else ""
+            pub_status = pub.publish_status if pub else "DRAFT"
+            platform = pub.platform if pub else "facebook"
+            pub_date = (pub.published_at if pub and pub.published_at else content_obj.created_at)
+
+            is_sim = (not pub) or (platform == "mock") or ("mock" in post_url) or ("dry_run" in post_url) or ("pita-media.mock" in post_url)
+
+            item = {
+                "id": pub.id if pub else content_obj.id,
+                "content_id": content_obj.id,
+                "title": content_obj.title or "Tanpa Judul",
+                "pilar": content_obj.pilar or "-",
+                "platform": platform,
+                "post_url": post_url,
+                "status": pub_status if pub else "SIMULATED_SUCCESS",
+                "caption": content_obj.caption or "",
+                "verification_hash": (pub.verification_hash if pub else "-") or "-",
+                "published_at": pub_date.strftime("%Y-%m-%d %H:%M") if pub_date else "-",
+                "preview_url": preview_url,
+                "media_urls": m_list,
+                "is_simulated": is_sim
+            }
+            recent_pubs.append(item)
+            
+            p_id = item["id"]
+            title = item["title"]
+            pilar = item["pilar"]
+            pub_at = item["published_at"]
+            
+            pilar_icon = "⏳" if "waktu" in pilar else ("📖" if "cerita" in pilar else ("✨" if "transformasi" in pilar else ("🪞" if "refleksi" in pilar else "🎬")))
+            
+            plat_badge = '<span class="platform-pill" style="background:rgba(59,130,246,0.15); color:#60A5FA; border:1px solid rgba(59,130,246,0.3);">📘 Facebook</span>'
+            if "instagram" in platform.lower() or "ig" in platform.lower():
+                plat_badge = '<span class="platform-pill" style="background:rgba(236,72,153,0.15); color:#F472B6; border:1px solid rgba(236,72,153,0.3);">📸 Instagram</span>'
+            elif "threads" in platform.lower():
+                plat_badge = '<span class="platform-pill" style="background:rgba(148,163,184,0.15); color:#E2E8F0; border:1px solid rgba(148,163,184,0.3);">🧵 Threads</span>'
+            
+            if is_sim:
+                status_badge = '<span class="status-indicator-badge" style="color:#60A5FA; background:rgba(96,165,250,0.12); border:1px solid rgba(96,165,250,0.3);"><span class="pulse-dot" style="background:#60A5FA;"></span> ⚡ SIMULASI (Dry Run)</span>'
+                btn_action = f'<button onclick="openPostPreview(\'{p_id}\')" class="btn btn-outline" style="font-size:0.75rem; padding: 5px 12px; border-radius: 6px; border-color: rgba(99,102,241,0.4); color: #818cf8; cursor:pointer;">👁️ Pratinjau Post</button>'
+            elif pub_status == "FAILED":
+                status_badge = '<span class="status-indicator-badge" style="color:#EF4444; background:rgba(239,68,68,0.12); border:1px solid rgba(239,68,68,0.3);"><span class="pulse-dot" style="background:#EF4444;"></span> 🔴 GAGAL</span>'
+                btn_action = f'<button onclick="openPostPreview(\'{p_id}\')" class="btn btn-outline" style="font-size:0.75rem; padding: 5px 12px; border-radius: 6px;">👁️ Detail</button>'
+            else:
+                status_badge = '<span class="status-indicator-badge" style="color:#34D399; background:rgba(16,185,129,0.12); border:1px solid rgba(16,185,129,0.3);"><span class="pulse-dot" style="background:#34D399;"></span> 🟢 LIVE TERBIT</span>'
+                btn_action = f'<a href="{post_url}" target="_blank" class="btn btn-primary" style="font-size:0.75rem; padding: 5px 12px; border-radius: 6px;">↗ Buka Post</a>' if post_url and post_url != '#' else f'<button onclick="openPostPreview(\'{p_id}\')" class="btn btn-outline" style="font-size:0.75rem; padding: 5px 12px; border-radius: 6px;">👁️ Detail</button>'
+
+            img_tag = f'<img src="{preview_url}" class="media-thumb-img" onerror="this.style.display=\'none\'; this.nextElementSibling.style.display=\'flex\';">' if preview_url else ''
+            fallback_display = 'none' if preview_url else 'flex'
+
+            row_html = f"""<tr class="table-row-hover">
+                <td style="width: 50px;">
+                    <div class="media-thumb-container" onclick="openPostPreview('{p_id}')" style="cursor:pointer;" title="Klik untuk pratinjau visual">
+                        {img_tag}
+                        <div class="media-fallback-badge" style="display:{fallback_display};">
+                            {pilar_icon}
+                        </div>
+                    </div>
+                </td>
+                <td>
+                    <div style="font-weight: 700; color: var(--text-main); font-size: 0.88rem; line-height: 1.35; cursor:pointer;" onclick="openPostPreview('{p_id}')">{title}</div>
+                    <div style="font-size: 0.73rem; color: var(--text-muted); margin-top: 3px;">Dipublikasikan: {pub_at}</div>
+                </td>
+                <td><span class="pilar-pill">#{pilar}</span></td>
+                <td>{plat_badge}</td>
+                <td>{status_badge}</td>
+                <td>{btn_action}</td>
+            </tr>"""
+            tbody_rows.append(row_html)
+
+        initial_tbody_html = "".join(tbody_rows) if tbody_rows else '<tr><td colspan="6" style="text-align:center; padding:32px; color:var(--text-muted);">Belum ada riwayat publikasi. Konten baru otomatis akan muncul di sini.</td></tr>'
+        initial_pubs_json = json.dumps(recent_pubs).replace("</script>", "<\\/script>")
+
+    providers_list = provider_registry.list_providers()
+    active_providers_count = len(providers_list) if providers_list else 1
+    total_queue = pending_jobs + running_jobs
+
     html_content = f"""<!DOCTYPE html>
 <html lang="id">
 <head>
@@ -730,7 +828,7 @@ async def serve_dashboard(_: bool = Depends(verify_dashboard_access)):
                             <span class="kpi-title">Konten Terbit</span>
                             <div class="kpi-icon-box" style="background: rgba(16,185,129,0.15); color: #10B981;">📜</div>
                         </div>
-                        <div id="metric-published" class="kpi-value">0</div>
+                        <div id="metric-published" class="kpi-value">{total_contents}</div>
                         <div class="kpi-footer"><span style="color:#10B981; font-weight:700;">● Terverifikasi</span> &middot; Multi-Platform</div>
                     </div>
 
@@ -739,7 +837,7 @@ async def serve_dashboard(_: bool = Depends(verify_dashboard_access)):
                             <span class="kpi-title">Antrean Proses</span>
                             <div class="kpi-icon-box" style="background: rgba(6,182,212,0.15); color: #06B6D4;">⏳</div>
                         </div>
-                        <div id="metric-pending" class="kpi-value">0</div>
+                        <div id="metric-pending" class="kpi-value">{total_queue}</div>
                         <div class="kpi-footer"><span style="color:#06B6D4; font-weight:700;">● Pipeline Aktif</span> &middot; Background Daemon</div>
                     </div>
 
@@ -757,7 +855,7 @@ async def serve_dashboard(_: bool = Depends(verify_dashboard_access)):
                             <span class="kpi-title">Mesin AI Aktif</span>
                             <div class="kpi-icon-box" style="background: rgba(139,92,246,0.15); color: #8B5CF6;">⚡</div>
                         </div>
-                        <div id="metric-providers" class="kpi-value" style="color: #8B5CF6;">-</div>
+                        <div id="metric-providers" class="kpi-value" style="color: #8B5CF6;">{active_providers_count}</div>
                         <div class="kpi-footer"><span style="color:#8B5CF6; font-weight:700;">● Multi-Tier</span> &middot; Gemini & Grok</div>
                     </div>
                 </div>
@@ -782,7 +880,7 @@ async def serve_dashboard(_: bool = Depends(verify_dashboard_access)):
                             </tr>
                         </thead>
                         <tbody id="overview-pubs-tbody">
-                            <tr><td colspan="6" style="color: var(--text-muted); text-align: center; padding: 24px;">Memuat data terbaru...</td></tr>
+                            {initial_tbody_html}
                         </tbody>
                     </table>
                 </div>
@@ -1437,7 +1535,7 @@ async def serve_dashboard(_: bool = Depends(verify_dashboard_access)):
             }} catch (e) {{ console.error('Poll stats error:', e); }}
         }}
 
-        window.currentRecentPubs = [];
+        window.currentRecentPubs = {initial_pubs_json};
 
         function openPostPreview(pubId) {{
             const p = window.currentRecentPubs.find(item => item.id === pubId || item.content_id === pubId);
