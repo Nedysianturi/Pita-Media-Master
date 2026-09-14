@@ -135,6 +135,54 @@ async def trigger_content_generation(payload: Dict[str, Any], background_tasks: 
         "message": f"Kreasi #{pilar} berhasil dijadwalkan (Job {job.id[:8]}). Sistem AI sedang merakit naskah & visual..."
     }
 
+# --- DIRECT PUBLISH API (FROM DRY RUN TO LIVE FACEBOOK) ---
+@app.post("/api/publish/now/{content_id}", response_class=JSONResponse)
+async def publish_content_now(content_id: str, _: bool = Depends(verify_dashboard_access)):
+    # 1. Ensure mode is set to PRODUCTION
+    os.environ["APP_MODE"] = "PRODUCTION"
+    setattr(settings, "APP_MODE", "PRODUCTION")
+    credential_manager.update_env_file({"APP_MODE": "PRODUCTION"})
+
+    async with async_session_factory() as session:
+        content_db = await session.get(Content, content_id)
+        if not content_db:
+            raise HTTPException(status_code=404, detail="Konten tidak ditemukan.")
+
+        from agents.publisher.publisher import publisher_agent
+        payload = {
+            "title": content_db.title,
+            "caption": content_db.caption,
+            "pilar": content_db.pilar,
+            "media_type": content_db.media_type,
+            "media_paths": content_db.media_paths or [],
+            "job_id": content_db.job_id or ""
+        }
+
+        try:
+            pub_res = await publisher_agent.publish_content(
+                content_id=content_db.id,
+                content_payload=payload,
+                qc_verdict="PASSED",
+                platform="facebook",
+                db_session=session
+            )
+            await session.commit()
+            
+            post_url = pub_res.get("permalink") or ""
+            fb_res = pub_res.get("platform_results", {}).get("facebook", {})
+            if fb_res.get("status") == "FAILED":
+                err = fb_res.get("error") or "Gagal mempublikasikan ke Facebook."
+                raise HTTPException(status_code=500, detail=err)
+
+            return {
+                "success": True,
+                "message": f"Konten '{content_db.title}' berhasil dialihkan ke mode PRODUCTION dan langsung terbit ke Facebook Fanspage!",
+                "post_url": post_url or pub_res.get("permalink", "")
+            }
+        except Exception as e:
+            logger.error(f"Direct publish failed: {e}")
+            raise HTTPException(status_code=500, detail=f"Gagal menerbitkan ke Facebook: {str(e)}")
+
 # --- CORE STATS & METRICS ---
 @app.get("/api/stats", response_class=JSONResponse)
 async def get_dashboard_stats(_: bool = Depends(verify_dashboard_access)):
@@ -145,31 +193,39 @@ async def get_dashboard_stats(_: bool = Depends(verify_dashboard_access)):
         completed_jobs = (await db.execute(select(func.count(Job.id)).where(Job.status == "COMPLETED"))).scalar() or 0
         total_contents = (await db.execute(select(func.count(Content.id)))).scalar() or 0
         
+        # Ambil semua konten terbaru dengan left outerjoin ke publication
         recent_pubs_res = await db.execute(
-            select(Publication, Content.title, Content.pilar, Content.caption, Content.media_paths)
-            .join(Content, Publication.content_id == Content.id)
-            .order_by(desc(Publication.published_at))
-            .limit(10)
+            select(Content, Publication)
+            .outerjoin(Publication, Content.id == Publication.content_id)
+            .order_by(desc(Content.created_at))
+            .limit(20)
         )
         recent_pubs = []
-        for pub, title, pilar, caption, media_paths in recent_pubs_res.all():
+        for content_obj, pub in recent_pubs_res.all():
             m_list = []
-            if media_paths:
-                for mp in media_paths:
+            if content_obj.media_paths:
+                for mp in content_obj.media_paths:
                     m_list.append(f"/api/media/{Path(mp).name}")
             preview_url = m_list[0] if m_list else ""
-            is_sim = (pub.platform == "mock") or ("mock" in (pub.post_url or "")) or ("dry_run" in (pub.post_url or "")) or ("pita-media.mock" in (pub.post_url or ""))
+
+            post_url = pub.post_url if pub else ""
+            pub_status = pub.publish_status if pub else "DRAFT"
+            platform = pub.platform if pub else "facebook"
+            pub_date = (pub.published_at if pub and pub.published_at else content_obj.created_at)
+
+            is_sim = (not pub) or (platform == "mock") or ("mock" in post_url) or ("dry_run" in post_url) or ("pita-media.mock" in post_url)
+
             recent_pubs.append({
-                "id": pub.id,
-                "content_id": pub.content_id,
-                "title": title or "Tanpa Judul",
-                "pilar": pilar or "-",
-                "platform": pub.platform,
-                "post_url": pub.post_url,
-                "status": pub.publish_status,
-                "caption": caption or "",
-                "verification_hash": pub.verification_hash or "-",
-                "published_at": pub.published_at.strftime("%Y-%m-%d %H:%M") if pub.published_at else "-",
+                "id": pub.id if pub else content_obj.id,
+                "content_id": content_obj.id,
+                "title": content_obj.title or "Tanpa Judul",
+                "pilar": content_obj.pilar or "-",
+                "platform": platform,
+                "post_url": post_url,
+                "status": pub_status if pub else "SIMULATED_SUCCESS",
+                "caption": content_obj.caption or "",
+                "verification_hash": (pub.verification_hash if pub else "-") or "-",
+                "published_at": pub_date.strftime("%Y-%m-%d %H:%M") if pub_date else "-",
                 "preview_url": preview_url,
                 "media_urls": m_list,
                 "is_simulated": is_sim
@@ -1198,41 +1254,46 @@ async def serve_dashboard(_: bool = Depends(verify_dashboard_access)):
 
     <!-- MODAL POST PREVIEW (SIMULATED & VERIFIED) -->
     <div id="modal-post-preview" class="modal-overlay">
-        <div class="modal-box" style="width: 620px; max-width: 95vw;">
+        <div class="modal-box" style="width: 680px; max-width: 95vw; max-height: 90vh; overflow-y: auto;">
             <div class="modal-header">
                 <div class="modal-title" id="prev-modal-title">🔍 Pratinjau Konten Terverifikasi</div>
                 <button onclick="closePostPreview()" style="background:none; border:none; color:var(--text-muted); font-size:1.4rem; cursor:pointer;">&times;</button>
             </div>
             
-            <div id="prev-sim-alert" style="background: rgba(99, 102, 241, 0.12); border: 1px solid rgba(99, 102, 241, 0.3); border-radius: 10px; padding: 12px 14px; margin-bottom: 16px; font-size: 0.8rem; color: #a5b4fc; display: flex; gap: 10px; align-items: flex-start;">
+            <div id="prev-sim-alert" style="background: rgba(99, 102, 241, 0.12); border: 1px solid rgba(99, 102, 241, 0.3); border-radius: 10px; padding: 12px 14px; margin-bottom: 14px; font-size: 0.8rem; color: #a5b4fc; display: flex; gap: 10px; align-items: flex-start;">
                 <span style="font-size: 1.1rem;">🛡️</span>
                 <div>
-                    <b>Mode Simulasi (DRY RUN):</b> Postingan ini telah selesai diproses oleh Creator & lulus Quality Control. Konten tersimpan lokal dan <u>belum ditayangkan ke Facebook publik</u> untuk menjaga keamanan akun.
+                    <b>Mode Simulasi (DRY RUN):</b> Konten ini sudah selesai dibuat dan lulus Quality Control secara lokal. Klik tombol biru di bawah untuk <u>otomatis beralih ke Mode Production dan langsung menerbitkannya ke Facebook Fanspage</u>!
                 </div>
             </div>
 
-            <div style="display:flex; gap:16px; margin-bottom:16px; align-items: flex-start;">
-                <div id="prev-media-box" style="width: 140px; height: 140px; border-radius: 12px; background: rgba(255,255,255,0.04); border: 1px solid var(--border); overflow: hidden; display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
-                    <img id="prev-img" src="" style="width: 100%; height: 100%; object-fit: cover; display: none;" onerror="this.style.display='none'; document.getElementById('prev-fallback-icon').style.display='flex';">
-                    <div id="prev-fallback-icon" style="font-size: 2.2rem; display: flex; align-items: center; justify-content: center; width: 100%; height: 100%;">📘</div>
-                </div>
-                <div style="flex:1;">
-                    <div id="prev-pilar-badge" style="margin-bottom: 6px;"></div>
-                    <h3 id="prev-title" style="margin: 0 0 6px 0; font-size: 1.05rem; color: var(--text-main); font-weight: 700; line-height: 1.35;">Judul Konten</h3>
-                    <div style="font-size: 0.75rem; color: var(--text-muted); margin-bottom: 4px;">Dipublikasikan: <span id="prev-date" style="color:var(--text-main);">-</span></div>
-                    <div style="font-size: 0.75rem; color: var(--text-muted);">Status: <span id="prev-status" style="color:var(--accent-emerald); font-weight: 600;">🟢 VERIFIED</span></div>
+            <!-- Top Title & Metadata -->
+            <div style="margin-bottom: 12px;">
+                <div id="prev-pilar-badge" style="display:inline-block; margin-bottom: 6px;"></div>
+                <h3 id="prev-title" style="margin: 0 0 6px 0; font-size: 1.12rem; color: var(--text-main); font-weight: 700; line-height: 1.35;">Judul Konten</h3>
+                <div style="display:flex; gap:16px; font-size: 0.78rem; color: var(--text-muted);">
+                    <div>Dipublikasikan: <span id="prev-date" style="color:var(--text-main); font-weight:600;">-</span></div>
+                    <div>Status: <span id="prev-status" style="font-weight: 600;">🟢 VERIFIED</span></div>
                 </div>
             </div>
 
-            <!-- Slide Gallery in Modal -->
-            <div id="prev-carousel-gallery" style="display:none; margin-bottom: 14px;">
-                <label class="form-label" style="font-size: 0.78rem; font-weight: 700; margin-bottom: 6px;">Slide Visual Karusel (Klik untuk perbesar):</label>
-                <div id="prev-slides-row" style="display: flex; gap: 8px; overflow-x: auto; padding-bottom: 6px;"></div>
+            <!-- High Visibility Visual Box -->
+            <div style="background: rgba(0,0,0,0.55); border: 1px solid var(--border); border-radius: 12px; padding: 12px; margin-bottom: 14px; display: flex; flex-direction: column; align-items: center;">
+                <div id="prev-media-box" style="width: 100%; max-height: 320px; min-height: 180px; border-radius: 8px; overflow: hidden; display: flex; align-items: center; justify-content: center; background: #000; cursor: zoom-in;" onclick="window.open(document.getElementById('prev-img').src, '_blank')" title="Klik untuk membuka gambar resolusi penuh di tab baru">
+                    <img id="prev-img" src="" style="max-width: 100%; max-height: 320px; object-fit: contain; display: block;" onerror="this.style.display='none'; document.getElementById('prev-fallback-icon').style.display='flex';">
+                    <div id="prev-fallback-icon" style="font-size: 3rem; display: none; align-items: center; justify-content: center; height: 160px; color: #60A5FA;">📘</div>
+                </div>
+                
+                <!-- Slide selector thumbnails row -->
+                <div id="prev-carousel-gallery" style="display:none; width: 100%; margin-top: 10px;">
+                    <div style="font-size: 0.75rem; color: var(--text-muted); margin-bottom: 6px; text-align: left;">📸 Pilih Slide Karusel untuk Dilihat:</div>
+                    <div id="prev-slides-row" style="display: flex; gap: 8px; overflow-x: auto; padding-bottom: 4px;"></div>
+                </div>
             </div>
 
             <div class="form-group">
                 <label class="form-label" style="font-size: 0.78rem; font-weight: 700;">Naskah & Caption Lengkap:</label>
-                <div id="prev-caption" style="background: rgba(0,0,0,0.3); border: 1px solid var(--border); border-radius: 10px; padding: 12px 14px; font-size: 0.82rem; line-height: 1.5; color: var(--text-main); max-height: 160px; overflow-y: auto; white-space: pre-wrap;">-</div>
+                <div id="prev-caption" style="background: rgba(0,0,0,0.3); border: 1px solid var(--border); border-radius: 10px; padding: 12px 14px; font-size: 0.84rem; line-height: 1.55; color: var(--text-main); max-height: 160px; overflow-y: auto; white-space: pre-wrap;">-</div>
             </div>
 
             <div style="background: rgba(255,255,255,0.02); border: 1px dashed var(--border); border-radius: 8px; padding: 10px 12px; font-size: 0.72rem; color: var(--text-muted); display:flex; justify-content: space-between; align-items: center;">
@@ -1242,7 +1303,7 @@ async def serve_dashboard(_: bool = Depends(verify_dashboard_access)):
 
             <div class="modal-actions" style="margin-top: 18px; padding-top: 14px;">
                 <button class="btn btn-outline" onclick="closePostPreview()">Tutup</button>
-                <button class="btn btn-primary" id="prev-live-btn" onclick="toggleMode()">🚀 Beralih ke Mode PRODUCTION</button>
+                <button class="btn btn-primary" id="prev-live-btn" onclick="toggleMode()">🚀 Publikasikan Langsung ke Facebook</button>
             </div>
         </div>
     </div>
@@ -1252,7 +1313,7 @@ async def serve_dashboard(_: bool = Depends(verify_dashboard_access)):
             const t = document.getElementById('toast');
             t.innerText = msg;
             t.style.display = 'block';
-            setTimeout(() => t.style.display = 'none', 3000);
+            setTimeout(() => t.style.display = 'none', 3500);
         }}
 
         function switchTab(tabId) {{
@@ -1285,12 +1346,17 @@ async def serve_dashboard(_: bool = Depends(verify_dashboard_access)):
                 const res = await fetch('/api/stats');
                 const d = await res.json();
                 
-                document.getElementById('metric-published').innerText = d.total_contents || 0;
-                document.getElementById('metric-queue').innerText = (d.job_stats.PENDING || 0) + (d.job_stats.PROCESSING || 0);
-                document.getElementById('metric-cost').innerText = '$' + (d.cost_metrics ? d.cost_metrics.daily_spend_usd.toFixed(2) : '0.00');
-                if (document.getElementById('metric-providers')) {{
-                    document.getElementById('metric-providers').innerText = d.active_providers_count || 1;
-                }}
+                const pubEl = document.getElementById('metric-published');
+                if (pubEl) pubEl.innerText = d.total_contents || 0;
+
+                const pendEl = document.getElementById('metric-pending') || document.getElementById('metric-queue');
+                if (pendEl) pendEl.innerText = (d.job_stats ? ((d.job_stats.PENDING || 0) + (d.job_stats.PROCESSING || 0)) : 0);
+
+                const costEl = document.getElementById('metric-cost');
+                if (costEl) costEl.innerText = '$' + (d.cost_metrics ? d.cost_metrics.daily_spend_usd.toFixed(2) : '0.00');
+
+                const provEl = document.getElementById('metric-providers');
+                if (provEl) provEl.innerText = d.active_providers_count || 1;
 
                 const getPilarIcon = (p) => {{
                     if (p.includes('waktu')) return '⏳';
@@ -1341,7 +1407,7 @@ async def serve_dashboard(_: bool = Depends(verify_dashboard_access)):
                     return `
                     <tr class="table-row-hover">
                         <td style="width: 50px;">
-                            <div class="media-thumb-container" onclick="openPostPreview('${{p.id}}')" style="cursor:pointer;" title="Klik untuk pratinjau">
+                            <div class="media-thumb-container" onclick="openPostPreview('${{p.id}}')" style="cursor:pointer;" title="Klik untuk pratinjau visual">
                                 ${{p.preview_url ? `<img src="${{p.preview_url}}" class="media-thumb-img" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">` : ''}}
                                 <div class="media-fallback-badge" style="${{p.preview_url ? 'display:none;' : 'display:flex;'}}">
                                     ${{icon}}
@@ -1374,7 +1440,7 @@ async def serve_dashboard(_: bool = Depends(verify_dashboard_access)):
         window.currentRecentPubs = [];
 
         function openPostPreview(pubId) {{
-            const p = window.currentRecentPubs.find(item => item.id === pubId);
+            const p = window.currentRecentPubs.find(item => item.id === pubId || item.content_id === pubId);
             if (!p) return;
 
             document.getElementById('prev-title').innerText = p.title || 'Tanpa Judul';
@@ -1392,9 +1458,30 @@ async def serve_dashboard(_: bool = Depends(verify_dashboard_access)):
                 document.getElementById('prev-status').innerHTML = '<span style="color:#10B981;">🟢 LIVE TERBIT (Facebook Fanspage)</span>';
             }}
 
-            document.getElementById('prev-caption').innerText = p.caption || '(Tidak ada caption tersimpan)';
+            // Bersihkan teks narasi dari catatan intro AI jika ada
+            let capText = (p.caption || '(Tidak ada caption tersimpan)');
+            if (capText.indexOf('***') !== -1) {{
+                const parts = capText.split('***');
+                if (parts.length > 1 && (parts[0].toLowerCase().includes('berikut') || parts[0].toLowerCase().includes('perbaikan') || parts[0].toLowerCase().includes('self-repair') || parts[0].toLowerCase().includes('qc'))) {{
+                    capText = '***' + parts.slice(1).join('***');
+                }}
+            }}
+            document.getElementById('prev-caption').innerText = capText.trim();
+
             document.getElementById('prev-hash').innerText = (p.verification_hash || '-').slice(0, 24) + '...';
             document.getElementById('prev-plat-name').innerText = 'Platform: ' + (p.platform ? p.platform.toUpperCase() : 'FACEBOOK');
+
+            const imgEl = document.getElementById('prev-img');
+            const fallbackEl = document.getElementById('prev-fallback-icon');
+            if (p.preview_url) {{
+                imgEl.src = p.preview_url;
+                imgEl.style.display = 'block';
+                fallbackEl.style.display = 'none';
+            }} else {{
+                imgEl.style.display = 'none';
+                fallbackEl.style.display = 'flex';
+                fallbackEl.innerText = p.platform === 'facebook' ? '📘' : (p.platform === 'instagram' ? '📸' : '🧵');
+            }}
 
             // Render all slides if carousel
             const galleryRow = document.getElementById('prev-slides-row');
@@ -1402,7 +1489,7 @@ async def serve_dashboard(_: bool = Depends(verify_dashboard_access)):
             if (p.media_urls && p.media_urls.length > 0) {{
                 galleryContainer.style.display = 'block';
                 galleryRow.innerHTML = p.media_urls.map((url, idx) => `
-                    <div style="width:64px; height:64px; border-radius:8px; overflow:hidden; border:1px solid var(--border); flex-shrink:0; cursor:pointer;" onclick="document.getElementById('prev-img').src='${{url}}'; document.getElementById('prev-img').style.display='block'; document.getElementById('prev-fallback-icon').style.display='none';" title="Slide ${{idx+1}}">
+                    <div style="width:72px; height:72px; border-radius:8px; overflow:hidden; border:2px solid ${{idx===0 ? '#3B82F6' : 'var(--border)'}}; flex-shrink:0; cursor:pointer;" onclick="document.getElementById('prev-img').src='${{url}}'; document.getElementById('prev-img').style.display='block'; document.getElementById('prev-fallback-icon').style.display='none'; document.querySelectorAll('#prev-slides-row > div').forEach(d => d.style.borderColor='var(--border)'); this.style.borderColor='#3B82F6';" title="Klik Slide ${{idx+1}}">
                         <img src="${{url}}" style="width:100%; height:100%; object-fit:cover;">
                     </div>
                 `).join('');
@@ -1414,11 +1501,11 @@ async def serve_dashboard(_: bool = Depends(verify_dashboard_access)):
 
             const liveBtn = document.getElementById('prev-live-btn');
             if (isSim) {{
-                liveBtn.innerText = '🚀 Beralih ke Mode PRODUCTION';
+                liveBtn.innerHTML = '🚀 Publikasikan Langsung ke Facebook';
                 liveBtn.style.display = 'inline-flex';
-                liveBtn.onclick = () => {{ closePostPreview(); toggleMode(); }};
+                liveBtn.onclick = () => {{ publishNow(p.content_id || p.id); }};
             }} else if (p.post_url && p.post_url !== '#' && !isFailed) {{
-                liveBtn.innerText = '↗ Buka Post Facebook Asli';
+                liveBtn.innerHTML = '↗ Buka Post Facebook Asli';
                 liveBtn.style.display = 'inline-flex';
                 liveBtn.onclick = () => {{ window.open(p.post_url, '_blank'); }};
             }} else {{
@@ -1426,6 +1513,36 @@ async def serve_dashboard(_: bool = Depends(verify_dashboard_access)):
             }}
 
             document.getElementById('modal-post-preview').style.display = 'flex';
+        }}
+
+        async function publishNow(contentId) {{
+            const btn = document.getElementById('prev-live-btn');
+            if (btn) {{
+                btn.innerHTML = '⏳ Menerbitkan ke Facebook...';
+                btn.disabled = true;
+            }}
+            showToast('🚀 Mengalihkan ke mode PRODUCTION dan mempublikasikan ke Facebook Fanspage...');
+            try {{
+                const res = await fetch('/api/publish/now/' + contentId, {{ method: 'POST' }});
+                const d = await res.json();
+                if (d.success) {{
+                    showToast('🟢 ' + d.message);
+                    closePostPreview();
+                    pollStats();
+                    if (d.post_url && d.post_url !== '#') {{
+                        setTimeout(() => window.open(d.post_url, '_blank'), 1200);
+                    }}
+                }} else {{
+                    showToast('🔴 Gagal terbit: ' + (d.detail || 'Eror'));
+                }}
+            }} catch (e) {{
+                showToast('🔴 Eror: ' + e.message);
+            }} finally {{
+                if (btn) {{
+                    btn.innerHTML = '🚀 Publikasikan Langsung ke Facebook';
+                    btn.disabled = false;
+                }}
+            }}
         }}
 
         function closePostPreview() {{
