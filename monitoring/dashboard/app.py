@@ -173,11 +173,26 @@ async def list_credentials(_: bool = Depends(verify_dashboard_access)):
 async def set_credential_endpoint(payload: Dict[str, Any], _: bool = Depends(verify_dashboard_access)):
     service_name = payload.get("service_name")
     credentials_dict = payload.get("credentials")
-    if not service_name or not credentials_dict:
-        raise HTTPException(status_code=400, detail="service_name and credentials object required.")
+    credential_key = payload.get("credential_key")
+    secret_value = payload.get("secret_value")
+
+    if not service_name:
+        raise HTTPException(status_code=400, detail="service_name is required.")
+
+    if not credentials_dict and credential_key and secret_value is not None:
+        credentials_dict = {credential_key: str(secret_value)}
+
+    if not credentials_dict:
+        raise HTTPException(status_code=400, detail="credentials object or credential_key + secret_value required.")
     
     success = credential_manager.set_credential(service_name, credentials_dict, updated_by="DASHBOARD")
-    return {"success": success, "service_name": service_name, "message": "Credential updated and encrypted in Vault."}
+    test_res = credential_manager.test_connection(service_name)
+    return {
+        "success": success,
+        "service_name": service_name,
+        "message": "Kredensial berhasil diperbarui dan dienkripsi ke Windows DPAPI Vault.",
+        "test_result": test_res
+    }
 
 @app.post("/api/credentials/test", response_class=JSONResponse)
 async def test_credential_endpoint(payload: Dict[str, Any], _: bool = Depends(verify_dashboard_access)):
@@ -425,8 +440,19 @@ async def serve_dashboard(_: bool = Depends(verify_dashboard_access)):
         td {{ padding: 12px; border-bottom: 1px solid rgba(255, 255, 255, 0.05); }}
         tr:hover td {{ background: rgba(255, 255, 255, 0.02); }}
         
+        /* Modals & Forms */
+        .modal-overlay {{ position: fixed; inset: 0; background: rgba(0, 0, 0, 0.75); backdrop-filter: blur(5px); display: none; align-items: center; justify-content: center; z-index: 9999; }}
+        .modal-box {{ background: var(--bg-surface); border: 1px solid var(--border); border-radius: 12px; width: 520px; max-width: 92vw; padding: 24px; box-shadow: 0 24px 48px rgba(0,0,0,0.7); animation: fadeIn 0.15s ease-out; }}
+        .modal-header {{ display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; border-bottom: 1px solid var(--border); padding-bottom: 12px; }}
+        .modal-title {{ font-size: 1.15rem; font-weight: 700; color: var(--text-main); font-family: 'Plus Jakarta Sans', sans-serif; }}
+        .form-group {{ margin-bottom: 16px; }}
+        .form-label {{ display: block; font-size: 0.8rem; font-weight: 600; color: var(--text-muted); margin-bottom: 6px; }}
+        .form-control {{ width: 100%; padding: 10px 14px; background: var(--bg-base); border: 1px solid var(--border); border-radius: 6px; color: var(--text-main); font-size: 0.88rem; outline: none; transition: 0.15s; }}
+        .form-control:focus {{ border-color: var(--accent-blue); box-shadow: 0 0 0 2px rgba(59,130,246,0.25); }}
+        .modal-actions {{ display: flex; justify-content: flex-end; gap: 10px; margin-top: 24px; border-top: 1px solid var(--border); padding-top: 16px; }}
+
         /* Toast */
-        #toast {{ position: fixed; bottom: 20px; right: 20px; background: var(--accent-blue); color: white; padding: 12px 20px; border-radius: 8px; display: none; box-shadow: 0 4px 12px rgba(0,0,0,0.4); z-index: 1000; font-weight: 600; }}
+        #toast {{ position: fixed; bottom: 20px; right: 20px; background: var(--accent-blue); color: white; padding: 12px 20px; border-radius: 8px; display: none; box-shadow: 0 4px 12px rgba(0,0,0,0.4); z-index: 10000; font-weight: 600; }}
         
         @keyframes fadeIn {{ from {{ opacity: 0; transform: translateY(4px); }} to {{ opacity: 1; transform: translateY(0); }} }}
     </style>
@@ -549,7 +575,26 @@ async def serve_dashboard(_: bool = Depends(verify_dashboard_access)):
 
             <!-- 7. CREDENTIALS TAB -->
             <div id="tab-credentials" class="tab-pane">
-                <div class="card"><div class="card-title">Central Encrypted Vault (Windows DPAPI)</div><table><thead><tr><th>Service Name</th><th>Masked Credentials</th><th>Last Updated</th><th>Actions</th></tr></thead><tbody id="credentials-tbody"></tbody></table></div>
+                <div class="card" style="margin-bottom: 20px;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+                        <div>
+                            <div class="card-title" style="margin-bottom: 4px;">Central Encrypted Vault (Windows DPAPI + AES-256)</div>
+                            <p style="font-size: 0.8rem; color: var(--text-muted);">Kelola API Key AI & Token Akses Media Sosial secara aman. Kunci langsung dienkripsi di level OS tanpa pernah terekspos.</p>
+                        </div>
+                        <button class="btn btn-outline" onclick="fetchCredentials()">🔄 Refresh Vault</button>
+                    </div>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th style="width: 26%;">Layanan & Deskripsi</th>
+                                <th style="width: 32%;">Masked Credential (Secret Vault)</th>
+                                <th style="width: 14%;">Status</th>
+                                <th style="width: 28%;">Aksi & Kontrol</th>
+                            </tr>
+                        </thead>
+                        <tbody id="credentials-tbody"></tbody>
+                    </table>
+                </div>
             </div>
 
             <!-- 8. A/B EXPERIMENTS TAB -->
@@ -599,7 +644,78 @@ async def serve_dashboard(_: bool = Depends(verify_dashboard_access)):
 
             <!-- 17. SETTINGS TAB -->
             <div id="tab-settings" class="tab-pane">
-                <div class="card"><div class="card-title">Config Snapshot History</div><table><thead><tr><th>Version ID</th><th>Config Name</th><th>Changed By</th><th>Reason</th><th>Timestamp</th></tr></thead><tbody id="versions-tbody"></tbody></table></div>
+                <div class="card"><div class="card-title">Config Snapshot History</div><table><thead><tr><th>Version ID</th><th>Config Name</th><th>Changed By</th><th>Reason</th><th>Timestamp</th></tr></thead><tbody id="versions-tbody"></tbody></table>                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL REPLACE CREDENTIAL -->
+    <div id="modal-replace-cred" class="modal-overlay">
+        <div class="modal-box">
+            <div class="modal-header">
+                <div class="modal-title" id="modal-cred-title">🔑 Ganti Kredensial / API Key</div>
+                <button onclick="closeReplaceCredModal()" style="background:none; border:none; color:var(--text-muted); font-size:1.3rem; cursor:pointer;">&times;</button>
+            </div>
+            <div class="form-group">
+                <label class="form-label">Nama Layanan</label>
+                <input type="text" id="modal-cred-service-display" class="form-control" readonly style="opacity:0.85; background:rgba(255,255,255,0.03);">
+                <input type="hidden" id="modal-cred-service-id">
+            </div>
+            <div class="form-group">
+                <label class="form-label">Nama Kunci (Key Identifier)</label>
+                <input type="text" id="modal-cred-key" class="form-control" readonly style="opacity:0.85; background:rgba(255,255,255,0.03);">
+            </div>
+            <div class="form-group">
+                <label class="form-label">Nilai Secret Baru (API Key / Access Token)</label>
+                <div style="position:relative;">
+                    <input type="password" id="modal-cred-value" class="form-control" placeholder="Tempel atau ketik API Key / Access Token baru di sini..." style="padding-right: 42px;">
+                    <button type="button" onclick="toggleCredVisibility()" style="position:absolute; right:10px; top:50%; transform:translateY(-50%); background:none; border:none; color:var(--text-muted); cursor:pointer; font-size:1.1rem;" title="Lihat / Sembunyikan">👁️</button>
+                </div>
+                <small style="color:var(--text-muted); font-size:0.75rem; margin-top:5px; display:block;">Nilai akan langsung dienkripsi menggunakan cipher Windows DPAPI ke dalam file `.vault.enc`.</small>
+            </div>
+            <div id="modal-cred-test-result" style="display:none; padding:10px 14px; border-radius:6px; font-size:0.82rem; margin-top:12px;"></div>
+            <div class="modal-actions">
+                <button class="btn btn-outline" onclick="closeReplaceCredModal()">Batal</button>
+                <button class="btn btn-outline" onclick="testModalCredential()" style="border-color:var(--accent-blue); color:#60A5FA;">🔍 Uji Koneksi Live</button>
+                <button class="btn btn-primary" onclick="saveCredentialFromModal()">💾 Simpan & Enkripsi</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL ADD PROVIDER -->
+    <div id="modal-add-provider" class="modal-overlay">
+        <div class="modal-box">
+            <div class="modal-header">
+                <div class="modal-title">⚡ Tambah AI Provider Baru</div>
+                <button onclick="closeAddProviderModal()" style="background:none; border:none; color:var(--text-muted); font-size:1.3rem; cursor:pointer;">&times;</button>
+            </div>
+            <div class="form-group">
+                <label class="form-label">Nama Provider</label>
+                <input type="text" id="prov-name" class="form-control" placeholder="e.g. DeepSeek AI / Anthropic Claude / Ollama">
+            </div>
+            <div class="form-group">
+                <label class="form-label">Base URL (OpenAI Compatible Endpoint)</label>
+                <input type="text" id="prov-url" class="form-control" placeholder="https://api.deepseek.com/v1" value="https://api.openai.com/v1">
+            </div>
+            <div class="form-group">
+                <label class="form-label">API Key</label>
+                <input type="password" id="prov-key" class="form-control" placeholder="sk-...">
+            </div>
+            <div class="form-group">
+                <label class="form-label">Default Model</label>
+                <input type="text" id="prov-model" class="form-control" placeholder="deepseek-chat" value="gpt-4o">
+            </div>
+            <div class="form-group">
+                <label class="form-label">Prioritas Router Tier</label>
+                <select id="prov-tier" class="form-control">
+                    <option value="PRIMARY">PRIMARY (Utama)</option>
+                    <option value="SECONDARY" selected>SECONDARY (Cadangan)</option>
+                    <option value="FALLBACK">FALLBACK (Darurat)</option>
+                </select>
+            </div>
+            <div class="modal-actions">
+                <button class="btn btn-outline" onclick="closeAddProviderModal()">Batal</button>
+                <button class="btn btn-primary" onclick="saveNewProvider()">💾 Daftarkan Provider</button>
             </div>
         </div>
     </div>
@@ -704,27 +820,192 @@ async def serve_dashboard(_: bool = Depends(verify_dashboard_access)):
         }}
 
         async function fetchCredentials() {{
-            const res = await fetch('/api/credentials');
-            const d = await res.json();
-            document.getElementById('credentials-tbody').innerHTML = d.credentials.map(c => `
-                <tr>
-                    <td><b>${{c.service_name}}</b></td>
-                    <td><code>${{JSON.stringify(c.credentials)}}</code></td>
-                    <td>${{c.last_updated}}</td>
-                    <td><button class="btn btn-outline" style="font-size:0.7rem;" onclick="testCred('${{c.service_name}}')">Test</button></td>
-                </tr>
-            `).join('');
+            try {{
+                const res = await fetch('/api/credentials');
+                const d = await res.json();
+                document.getElementById('credentials-tbody').innerHTML = d.credentials.map(c => {{
+                    const isConfigured = c.is_configured;
+                    const statusBadge = isConfigured 
+                        ? '<span style="color:var(--accent-emerald); font-weight:700; font-size:0.75rem;">● CONFIGURED</span>'
+                        : '<span style="color:var(--accent-amber); font-weight:700; font-size:0.75rem;">● BELUM DIATUR</span>';
+                    const dispName = c.display_name || c.service_name;
+                    const pKey = c.primary_key || 'api_key';
+                    const maskedVal = c.masked_value || (c.credentials ? JSON.stringify(c.credentials) : '-');
+
+                    return `
+                    <tr>
+                        <td>
+                            <div style="font-weight:700; color:var(--text-main); font-size:0.9rem;">${{dispName}}</div>
+                            <div style="font-size:0.75rem; color:var(--text-muted); margin-top:2px;">${{c.description || ''}}</div>
+                        </td>
+                        <td>
+                            <div style="font-size:0.72rem; color:var(--text-muted); margin-bottom:3px;">Key ID: <code>${{pKey}}</code></div>
+                            <code style="background:rgba(255,255,255,0.06); padding:4px 8px; border-radius:4px; font-size:0.82rem; color:#A78BFA; display:inline-block;">${{maskedVal}}</code>
+                        </td>
+                        <td>${{statusBadge}}</td>
+                        <td style="white-space:nowrap;">
+                            <button class="btn btn-outline" style="font-size:0.75rem; padding:5px 10px; margin-right:6px;" onclick="testCred('${{c.service_name}}')">🔍 Test</button>
+                            <button class="btn btn-primary" style="font-size:0.75rem; padding:5px 12px;" onclick="openReplaceCredModal('${{c.service_name}}', '${{dispName}}', '${{pKey}}')">🔑 Ganti Key</button>
+                        </td>
+                    </tr>
+                    `;
+                }}).join('') || '<tr><td colspan="4" style="text-align:center; color:var(--text-muted);">Tidak ada kredensial.</td></tr>';
+            }} catch (e) {{ console.error(e); }}
         }}
 
         async function testCred(service) {{
-            showToast('Testing ' + service + '...');
-            const res = await fetch('/api/credentials/test', {{
-                method: 'POST',
-                headers: {{ 'Content-Type': 'application/json' }},
-                body: JSON.stringify({{ service_name: service }})
-            }});
-            const d = await res.json();
-            showToast(d.message);
+            showToast('Menguji koneksi ' + service.toUpperCase() + '...');
+            try {{
+                const res = await fetch('/api/credentials/test', {{
+                    method: 'POST',
+                    headers: {{ 'Content-Type': 'application/json' }},
+                    body: JSON.stringify({{ service_name: service }})
+                }});
+                const d = await res.json();
+                if (d.status === 'VALID') {{
+                    showToast('🟢 ' + service.toUpperCase() + ': ' + (d.message || 'Koneksi Valid'));
+                }} else {{
+                    showToast('🔴 ' + service.toUpperCase() + ' (' + d.status + '): ' + (d.message || 'Gagal'));
+                }}
+            }} catch (e) {{
+                showToast('Eror: ' + e.message);
+            }}
+        }}
+
+        function openReplaceCredModal(serviceId, displayName, primaryKey) {{
+            document.getElementById('modal-cred-service-id').value = serviceId;
+            document.getElementById('modal-cred-service-display').value = displayName;
+            document.getElementById('modal-cred-key').value = primaryKey;
+            document.getElementById('modal-cred-value').value = '';
+            document.getElementById('modal-cred-value').type = 'password';
+            document.getElementById('modal-cred-test-result').style.display = 'none';
+            document.getElementById('modal-replace-cred').style.display = 'flex';
+        }}
+
+        function closeReplaceCredModal() {{
+            document.getElementById('modal-replace-cred').style.display = 'none';
+        }}
+
+        function toggleCredVisibility() {{
+            const input = document.getElementById('modal-cred-value');
+            input.type = input.type === 'password' ? 'text' : 'password';
+        }}
+
+        async function testModalCredential() {{
+            const serviceId = document.getElementById('modal-cred-service-id').value;
+            const secretValue = document.getElementById('modal-cred-value').value.trim();
+            const resultBox = document.getElementById('modal-cred-test-result');
+
+            resultBox.style.display = 'block';
+            resultBox.style.background = 'rgba(59, 130, 246, 0.15)';
+            resultBox.style.color = '#60A5FA';
+            resultBox.style.border = '1px solid rgba(59, 130, 246, 0.4)';
+            resultBox.innerText = 'Menguji koneksi live ke ' + serviceId.toUpperCase() + '...';
+
+            try {{
+                const res = await fetch('/api/credentials/test', {{
+                    method: 'POST',
+                    headers: {{ 'Content-Type': 'application/json' }},
+                    body: JSON.stringify({{ service_name: serviceId, custom_token: secretValue || undefined }})
+                }});
+                const d = await res.json();
+                if (d.status === 'VALID') {{
+                    resultBox.style.background = 'rgba(16, 185, 129, 0.15)';
+                    resultBox.style.color = 'var(--accent-emerald)';
+                    resultBox.style.border = '1px solid rgba(16, 185, 129, 0.4)';
+                    resultBox.innerHTML = '🟢 <b>VALID:</b> ' + (d.message || 'Koneksi berhasil diverifikasi.');
+                }} else {{
+                    resultBox.style.background = 'rgba(239, 68, 68, 0.15)';
+                    resultBox.style.color = 'var(--accent-rose)';
+                    resultBox.style.border = '1px solid rgba(239, 68, 68, 0.4)';
+                    resultBox.innerHTML = '🔴 <b>' + d.status + ':</b> ' + (d.message || 'Gagal terhubung.');
+                }}
+            }} catch (e) {{
+                resultBox.style.background = 'rgba(239, 68, 68, 0.15)';
+                resultBox.style.color = 'var(--accent-rose)';
+                resultBox.innerText = 'Eror: ' + e.message;
+            }}
+        }}
+
+        async function saveCredentialFromModal() {{
+            const serviceId = document.getElementById('modal-cred-service-id').value;
+            const primaryKey = document.getElementById('modal-cred-key').value;
+            const secretValue = document.getElementById('modal-cred-value').value.trim();
+
+            if (!secretValue) {{
+                showToast('Nilai API Key / Token tidak boleh kosong.');
+                return;
+            }}
+
+            showToast('Menyimpan & mengenkripsi ke DPAPI Vault...');
+            try {{
+                const res = await fetch('/api/credentials/set', {{
+                    method: 'POST',
+                    headers: {{ 'Content-Type': 'application/json' }},
+                    body: JSON.stringify({{
+                        service_name: serviceId,
+                        credential_key: primaryKey,
+                        secret_value: secretValue
+                    }})
+                }});
+                const d = await res.json();
+                if (d.success) {{
+                    showToast('✅ ' + d.message);
+                    closeReplaceCredModal();
+                    fetchCredentials();
+                }} else {{
+                    showToast('Eror: ' + (d.detail || 'Gagal menyimpan kredensial.'));
+                }}
+            }} catch (e) {{
+                showToast('Eror: ' + e.message);
+            }}
+        }}
+
+        function showAddProviderModal() {{
+            document.getElementById('modal-add-provider').style.display = 'flex';
+        }}
+
+        function closeAddProviderModal() {{
+            document.getElementById('modal-add-provider').style.display = 'none';
+        }}
+
+        async function saveNewProvider() {{
+            const name = document.getElementById('prov-name').value.trim();
+            const baseUrl = document.getElementById('prov-url').value.trim();
+            const apiKey = document.getElementById('prov-key').value.trim();
+            const model = document.getElementById('prov-model').value.trim();
+            const tier = document.getElementById('prov-tier').value;
+
+            if (!name || !apiKey) {{
+                showToast('Nama Provider dan API Key harus diisi.');
+                return;
+            }}
+
+            showToast('Mendaftarkan provider baru...');
+            try {{
+                const res = await fetch('/api/providers/add', {{
+                    method: 'POST',
+                    headers: {{ 'Content-Type': 'application/json' }},
+                    body: JSON.stringify({{
+                        name: name,
+                        base_url: baseUrl,
+                        api_key: apiKey,
+                        default_model: model,
+                        tier: tier,
+                        capabilities: ["TEXT", "REASONING"]
+                    }})
+                }});
+                const d = await res.json();
+                if (d.success) {{
+                    showToast('✅ Provider ' + name + ' berhasil didaftarkan.');
+                    closeAddProviderModal();
+                    fetchProviders();
+                }} else {{
+                    showToast('Eror mendaftarkan provider.');
+                }}
+            }} catch (e) {{
+                showToast('Eror: ' + e.message);
+            }}
         }}
 
         async function fetchExperiments() {{

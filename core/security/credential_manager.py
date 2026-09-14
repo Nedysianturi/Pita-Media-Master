@@ -57,30 +57,126 @@ class CentralCredentialManager:
             return os.getenv(fallback_env, "")
         return None
     def set_credential(self, service_name: str, credentials_dict: Dict[str, str], updated_by: str = "SYSTEM") -> bool:
-        """Stores a dictionary of credentials for a given service."""
+        """Stores a dictionary of credentials for a given service and synchronizes runtime settings."""
+        sname = service_name.lower().strip()
         for k, v in credentials_dict.items():
-            self.secret_store.set_secret(f"{service_name}_{k}", str(v))
+            val = str(v).strip()
+            self.secret_store.set_secret(f"{sname}_{k}", val)
+            self.secret_store.set_secret(f"{sname}", val)
+            self.secret_store.set_secret(k, val)
+
+            # Synchronize settings and runtime environment
+            if "gemini" in sname or "google" in sname:
+                self.secret_store.set_secret("gemini_api_key", val)
+                self.secret_store.set_secret("GEMINI_API_KEY", val)
+                os.environ["GEMINI_API_KEY"] = val
+                settings.GEMINI_API_KEY = val
+            elif "xai" in sname or "grok" in sname:
+                self.secret_store.set_secret("xai_api_key", val)
+                self.secret_store.set_secret("XAI_API_KEY", val)
+                os.environ["XAI_API_KEY"] = val
+                settings.XAI_API_KEY = val
+            elif "facebook" in sname or "fb" in sname:
+                self.secret_store.set_secret("fb_page_access_token", val)
+                self.secret_store.set_secret("FB_PAGE_ACCESS_TOKEN", val)
+                os.environ["FB_PAGE_ACCESS_TOKEN"] = val
+                settings.FB_PAGE_ACCESS_TOKEN = val
+            elif "instagram" in sname or "ig" in sname:
+                self.secret_store.set_secret("ig_access_token", val)
+                self.secret_store.set_secret("IG_ACCESS_TOKEN", val)
+                os.environ["IG_ACCESS_TOKEN"] = val
+                settings.IG_ACCESS_TOKEN = val
+            elif "threads" in sname:
+                self.secret_store.set_secret("threads_access_token", val)
+                self.secret_store.set_secret("THREADS_ACCESS_TOKEN", val)
+                os.environ["THREADS_ACCESS_TOKEN"] = val
+                settings.THREADS_ACCESS_TOKEN = val
+            elif "telegram" in sname:
+                self.secret_store.set_secret("telegram_bot_token", val)
+                self.secret_store.set_secret("TELEGRAM_BOT_TOKEN", val)
+                os.environ["TELEGRAM_BOT_TOKEN"] = val
+                settings.TELEGRAM_BOT_TOKEN = val
+
         self._record_audit_log(
             provider=service_name,
             credential_type="bulk",
             action="UPDATED",
             actor=updated_by,
-            source="System",
+            source="Dashboard",
             result="SUCCESS"
         )
         return True
 
     def list_all_credentials_masked(self) -> List[Dict[str, Any]]:
-        """List all active credentials with secrets masked."""
-        services = ["gemini", "xai", "meta_facebook", "meta_instagram", "meta_threads", "telegram"]
+        """List all active credentials with secrets masked and clear display info."""
+        service_definitions = [
+            {
+                "service_id": "gemini",
+                "display_name": "Google / Gemini AI",
+                "primary_key": "api_key",
+                "env_fallback": "GEMINI_API_KEY",
+                "category": "AI Provider",
+                "description": "API Key untuk Gemini 2.5 Flash / Pro, Veo, dan Imagen 3"
+            },
+            {
+                "service_id": "xai",
+                "display_name": "xAI / Grok",
+                "primary_key": "api_key",
+                "env_fallback": "XAI_API_KEY",
+                "category": "AI Provider",
+                "description": "API Key untuk Grok-2 / Grok-3 (Secondary Fallback Router)"
+            },
+            {
+                "service_id": "facebook",
+                "display_name": "Meta / Facebook Page",
+                "primary_key": "page_access_token",
+                "env_fallback": "FB_PAGE_ACCESS_TOKEN",
+                "category": "Publisher",
+                "description": "Page Access Token untuk Fanspage @Pitamediaid (ID: 1253340697871457)"
+            },
+            {
+                "service_id": "instagram",
+                "display_name": "Meta / Instagram Business",
+                "primary_key": "access_token",
+                "env_fallback": "IG_ACCESS_TOKEN",
+                "category": "Publisher",
+                "description": "User / Page Access Token untuk Instagram Reels & Carousels"
+            },
+            {
+                "service_id": "threads",
+                "display_name": "Meta / Threads API",
+                "primary_key": "access_token",
+                "env_fallback": "THREADS_ACCESS_TOKEN",
+                "category": "Publisher",
+                "description": "Threads API Publishing Token untuk narasi mikro"
+            },
+            {
+                "service_id": "telegram",
+                "display_name": "Telegram Bot (C2 & Alerts)",
+                "primary_key": "bot_token",
+                "env_fallback": "TELEGRAM_BOT_TOKEN",
+                "category": "Command & Control",
+                "description": "Bot Token dari @BotFather untuk @pitamediabot"
+            }
+        ]
+
         res = []
-        for s in services:
-            creds = self.get_credential(s) or {}
-            masked = {k: self.secret_store.mask_secret(str(v)) for k, v in (creds.items() if isinstance(creds, dict) else {"key": creds}.items())}
+        for s in service_definitions:
+            sid = s["service_id"]
+            val = self.get_credential(f"{sid}_{s['primary_key']}") or self.get_credential(sid) or self.get_credential(s["env_fallback"]) or os.getenv(s["env_fallback"], "")
+            masked = self.secret_store.mask_secret(str(val)) if val else "(Belum Dikonfigurasi)"
+            is_configured = bool(val and str(val).strip() and not str(val).startswith("your_") and not str(val).startswith("mock_"))
+
             res.append({
-                "service_name": s,
-                "credentials": masked,
-                "last_updated": datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
+                "service_name": sid,
+                "display_name": s["display_name"],
+                "category": s["category"],
+                "primary_key": s["primary_key"],
+                "description": s["description"],
+                "is_configured": is_configured,
+                "masked_value": masked,
+                "credentials": {s["primary_key"]: masked},
+                "last_updated": datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M")
             })
         return res
 
