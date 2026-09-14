@@ -125,23 +125,28 @@ async def get_dashboard_stats(_: bool = Depends(verify_dashboard_access)):
         total_contents = (await db.execute(select(func.count(Content.id)))).scalar() or 0
         
         recent_pubs_res = await db.execute(
-            select(Publication, Content.title, Content.pilar, Content.media_paths)
+            select(Publication, Content.title, Content.pilar, Content.caption, Content.media_paths)
             .join(Content, Publication.content_id == Content.id)
             .order_by(desc(Publication.published_at))
             .limit(10)
         )
         recent_pubs = []
-        for pub, title, pilar, media_paths in recent_pubs_res.all():
+        for pub, title, pilar, caption, media_paths in recent_pubs_res.all():
             preview_url = f"/api/media/{Path(media_paths[0]).name}" if media_paths and len(media_paths) > 0 else ""
+            is_sim = (pub.platform == "mock") or ("mock" in (pub.post_url or "")) or ("dry_run" in (pub.post_url or "")) or ("pita-media.mock" in (pub.post_url or ""))
             recent_pubs.append({
                 "id": pub.id,
+                "content_id": pub.content_id,
                 "title": title or "Tanpa Judul",
                 "pilar": pilar or "-",
                 "platform": pub.platform,
                 "post_url": pub.post_url,
                 "status": pub.publish_status,
+                "caption": caption or "",
+                "verification_hash": pub.verification_hash or "-",
                 "published_at": pub.published_at.strftime("%Y-%m-%d %H:%M") if pub.published_at else "-",
-                "preview_url": preview_url
+                "preview_url": preview_url,
+                "is_simulated": is_sim
             })
 
         spend_metrics = await cost_governor.get_spend_metrics(db)
@@ -1064,6 +1069,51 @@ async def serve_dashboard(_: bool = Depends(verify_dashboard_access)):
         </div>
     </div>
 
+    <!-- MODAL POST PREVIEW (SIMULATED & VERIFIED) -->
+    <div id="modal-post-preview" class="modal-overlay">
+        <div class="modal-box" style="width: 620px; max-width: 95vw;">
+            <div class="modal-header">
+                <div class="modal-title" id="prev-modal-title">🔍 Pratinjau Konten Terverifikasi</div>
+                <button onclick="closePostPreview()" style="background:none; border:none; color:var(--text-muted); font-size:1.4rem; cursor:pointer;">&times;</button>
+            </div>
+            
+            <div id="prev-sim-alert" style="background: rgba(99, 102, 241, 0.12); border: 1px solid rgba(99, 102, 241, 0.3); border-radius: 10px; padding: 12px 14px; margin-bottom: 16px; font-size: 0.8rem; color: #a5b4fc; display: flex; gap: 10px; align-items: flex-start;">
+                <span style="font-size: 1.1rem;">🛡️</span>
+                <div>
+                    <b>Mode Simulasi (DRY RUN):</b> Postingan ini telah selesai diproses oleh Creator & lulus Quality Control. Konten tersimpan lokal dan <u>belum ditayangkan ke Facebook publik</u> untuk menjaga keamanan akun.
+                </div>
+            </div>
+
+            <div style="display:flex; gap:16px; margin-bottom:16px; align-items: flex-start;">
+                <div id="prev-media-box" style="width: 140px; height: 140px; border-radius: 12px; background: rgba(255,255,255,0.04); border: 1px solid var(--border); overflow: hidden; display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
+                    <img id="prev-img" src="" style="width: 100%; height: 100%; object-fit: cover; display: none;">
+                    <div id="prev-fallback-icon" style="font-size: 2.2rem;">📘</div>
+                </div>
+                <div style="flex:1;">
+                    <div id="prev-pilar-badge" style="margin-bottom: 6px;"></div>
+                    <h3 id="prev-title" style="margin: 0 0 6px 0; font-size: 1.05rem; color: var(--text-main); font-weight: 700; line-height: 1.35;">Judul Konten</h3>
+                    <div style="font-size: 0.75rem; color: var(--text-muted); margin-bottom: 4px;">Dipublikasikan: <span id="prev-date" style="color:var(--text-main);">-</span></div>
+                    <div style="font-size: 0.75rem; color: var(--text-muted);">Status: <span id="prev-status" style="color:var(--accent-emerald); font-weight: 600;">🟢 VERIFIED</span></div>
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label class="form-label" style="font-size: 0.78rem; font-weight: 700;">Naskah & Caption Lengkap:</label>
+                <div id="prev-caption" style="background: rgba(0,0,0,0.3); border: 1px solid var(--border); border-radius: 10px; padding: 12px 14px; font-size: 0.82rem; line-height: 1.5; color: var(--text-main); max-height: 160px; overflow-y: auto; white-space: pre-wrap;">-</div>
+            </div>
+
+            <div style="background: rgba(255,255,255,0.02); border: 1px dashed var(--border); border-radius: 8px; padding: 10px 12px; font-size: 0.72rem; color: var(--text-muted); display:flex; justify-content: space-between; align-items: center;">
+                <div>Verification Hash: <code id="prev-hash" style="color: var(--accent-blue); font-family: monospace;">-</code></div>
+                <div id="prev-plat-name">Platform: Facebook</div>
+            </div>
+
+            <div class="modal-actions" style="margin-top: 18px; padding-top: 14px;">
+                <button class="btn btn-outline" onclick="closePostPreview()">Tutup</button>
+                <button class="btn btn-primary" id="prev-live-btn" onclick="toggleMode()">🚀 Beralih ke Mode PRODUCTION</button>
+            </div>
+        </div>
+    </div>
+
     <script>
         function showToast(msg) {{
             const t = document.getElementById('toast');
@@ -1121,6 +1171,8 @@ async def serve_dashboard(_: bool = Depends(verify_dashboard_access)):
                     return '<span class="platform-pill" style="background:rgba(6,182,212,0.15); color:#22D3EE; border:1px solid rgba(6,182,212,0.3);">🛡️ Simulated</span>';
                 }};
 
+                window.currentRecentPubs = d.recent_publications || [];
+
                 if (!d.recent_publications || d.recent_publications.length === 0) {{
                     document.getElementById('overview-pubs-tbody').innerHTML = '<tr><td colspan="6" style="text-align:center; padding:32px; color:var(--text-muted);">Belum ada riwayat publikasi. Konten baru otomatis akan muncul di sini.</td></tr>';
                     return;
@@ -1133,6 +1185,7 @@ async def serve_dashboard(_: bool = Depends(verify_dashboard_access)):
                     const statusColor = isVerified ? '#34D399' : '#FBBF24';
                     const statusBg = isVerified ? 'rgba(16,185,129,0.12)' : 'rgba(245,158,11,0.12)';
                     const statusBorder = isVerified ? 'rgba(16,185,129,0.3)' : 'rgba(245,158,11,0.3)';
+                    const isSim = p.is_simulated || (p.post_url && (p.post_url.includes('.mock') || p.post_url.includes('dry_run')));
                     
                     return `
                     <tr class="table-row-hover">
@@ -1156,12 +1209,62 @@ async def serve_dashboard(_: bool = Depends(verify_dashboard_access)):
                             </span>
                         </td>
                         <td>
-                            ${{p.post_url && p.post_url !== '#' ? `<a href="${{p.post_url}}" target="_blank" class="btn btn-outline" style="font-size:0.75rem; padding: 5px 12px; border-radius: 6px;">↗ Buka Post</a>` : `<span style="color:var(--text-muted); font-size:0.75rem;">-</span>`}}
+                            ${{isSim ? 
+                                `<button onclick="openPostPreview('${{p.id}}')" class="btn btn-outline" style="font-size:0.75rem; padding: 5px 12px; border-radius: 6px; border-color: rgba(99,102,241,0.4); color: #818cf8; cursor:pointer;">👁️ Pratinjau Post</button>` : 
+                                (p.post_url && p.post_url !== '#' ? `<a href="${{p.post_url}}" target="_blank" class="btn btn-primary" style="font-size:0.75rem; padding: 5px 12px; border-radius: 6px;">↗ Buka Post</a>` : `<span style="color:var(--text-muted); font-size:0.75rem;">-</span>`)
+                            }}
                         </td>
                     </tr>
                     `;
                 }}).join('');
             }} catch (e) {{ console.error('Poll stats error:', e); }}
+        }}
+
+        window.currentRecentPubs = [];
+
+        function openPostPreview(pubId) {{
+            const p = window.currentRecentPubs.find(item => item.id === pubId);
+            if (!p) return;
+
+            document.getElementById('prev-title').innerText = p.title || 'Tanpa Judul';
+            document.getElementById('prev-pilar-badge').innerHTML = `<span class="pilar-pill">#${{p.pilar || 'pita_waktu'}}</span>`;
+            document.getElementById('prev-date').innerText = p.published_at || '-';
+            document.getElementById('prev-status').innerText = '🟢 ' + (p.status || 'VERIFIED');
+            document.getElementById('prev-caption').innerText = p.caption || '(Tidak ada caption tersimpan)';
+            document.getElementById('prev-hash').innerText = (p.verification_hash || '-').slice(0, 24) + '...';
+            document.getElementById('prev-plat-name').innerText = 'Platform: ' + (p.platform ? p.platform.toUpperCase() : 'FACEBOOK');
+
+            const imgEl = document.getElementById('prev-img');
+            const fallbackEl = document.getElementById('prev-fallback-icon');
+            if (p.preview_url) {{
+                imgEl.src = p.preview_url;
+                imgEl.style.display = 'block';
+                fallbackEl.style.display = 'none';
+            }} else {{
+                imgEl.style.display = 'none';
+                fallbackEl.style.display = 'block';
+                fallbackEl.innerText = p.platform === 'facebook' ? '📘' : (p.platform === 'instagram' ? '📸' : '🧵');
+            }}
+
+            const isSim = p.is_simulated || (p.post_url && (p.post_url.includes('.mock') || p.post_url.includes('dry_run')));
+            document.getElementById('prev-sim-alert').style.display = isSim ? 'flex' : 'none';
+
+            const liveBtn = document.getElementById('prev-live-btn');
+            if (isSim) {{
+                liveBtn.innerText = '🚀 Beralih ke Mode PRODUCTION';
+                liveBtn.onclick = () => {{ closePostPreview(); toggleMode(); }};
+            }} else if (p.post_url && p.post_url !== '#') {{
+                liveBtn.innerText = '↗ Buka Post Facebook Asli';
+                liveBtn.onclick = () => {{ window.open(p.post_url, '_blank'); }};
+            }} else {{
+                liveBtn.style.display = 'none';
+            }}
+
+            document.getElementById('modal-post-preview').style.display = 'flex';
+        }}
+
+        function closePostPreview() {{
+            document.getElementById('modal-post-preview').style.display = 'none';
         }}
 
         async function toggleMode() {{
