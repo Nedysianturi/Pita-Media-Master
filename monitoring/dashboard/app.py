@@ -27,7 +27,12 @@ from core.scheduler import content_orchestrator
 from monitoring.telegram_bot import telegram_c2
 from agents.strategist import strategy_optimizer
 
-app = FastAPI(title="Pita Media - Interactive Command Center", docs_url=None, redoc_url=None)
+app = FastAPI(title="PitaMedia.tv - Interactive Command Center", docs_url=None, redoc_url=None)
+
+# Mount static folder for logo and visual assets
+static_dir = Path(__file__).resolve().parent / "static"
+static_dir.mkdir(parents=True, exist_ok=True)
+app.mount("/static", StaticFiles(directory=str(static_dir)), name="static")
 
 API_KEY_HEADER = APIKeyHeader(name="X-Pita-Secret", auto_error=False)
 
@@ -54,16 +59,24 @@ def verify_dashboard_access(key: str = Security(API_KEY_HEADER), request: Reques
 
 @app.get("/api/media/{file_path:path}")
 async def serve_media(file_path: str):
-    """Serve media files dari storage."""
+    """Serve media files dari storage raw/processed/base."""
+    # 1. Cek langsung di raw
+    raw_target = (settings.raw_media_dir / Path(file_path).name).resolve()
+    if raw_target.exists():
+        return FileResponse(str(raw_target))
+
+    # 2. Cek di processed
+    proc_target = (settings.processed_media_dir / Path(file_path).name).resolve()
+    if proc_target.exists():
+        return FileResponse(str(proc_target))
+
+    # 3. Cek di base storage
     base_storage = settings.storage_dir.resolve()
     target = (base_storage / file_path).resolve()
-    if not target.exists() or not str(target).startswith(str(base_storage)):
-        # Coba cek di raw atau processed jika relative
-        raw_target = (settings.raw_media_dir / file_path).resolve()
-        if raw_target.exists():
-            return FileResponse(str(raw_target))
-        raise HTTPException(status_code=404, detail="File media tidak ditemukan")
-    return FileResponse(str(target))
+    if target.exists() and str(target).startswith(str(base_storage)):
+        return FileResponse(str(target))
+
+    raise HTTPException(status_code=404, detail="File media tidak ditemukan")
 
 
 @app.get("/api/stats", response_class=JSONResponse)
@@ -192,11 +205,11 @@ async def get_interactive_dashboard_page(request: Request, _: bool = Depends(ver
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Pita Media · Autonomous AI Content Studio</title>
+    <title>PitaMedia.tv · Autonomous AI Content Studio</title>
+    <link rel="icon" type="image/png" href="/static/logo.png">
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- Google Fonts -->
-    <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
     <!-- FontAwesome & Chart.js -->
@@ -263,15 +276,13 @@ async def get_interactive_dashboard_page(request: Request, _: bool = Depends(ver
         <!-- TOP BAR: Brand, Target Fanspage, Status Badge, Controls -->
         <header class="glass-panel rounded-3xl p-6 flex flex-col md:flex-row items-center justify-between gap-6 shadow-2xl border-t border-amber-500/20">
             <div class="flex items-center space-x-4">
-                <div class="w-14 h-14 rounded-2xl bg-gradient-to-tr from-amber-500 to-amber-300 flex items-center justify-center text-slate-950 font-black text-2xl shadow-lg glow-gold">
-                    <i class="fa-solid fa-ribbon"></i>
-                </div>
+                <img src="/static/logo.png" alt="PitaMedia.tv Logo" class="w-16 h-16 object-contain rounded-2xl bg-white/95 p-1 shadow-xl glow-gold border border-amber-500/30">
                 <div>
                     <div class="flex items-center space-x-3">
-                        <h1 class="text-2xl font-extrabold tracking-tight bg-gradient-to-r from-amber-300 via-amber-400 to-orange-400 bg-clip-text text-transparent">
-                            PITA MEDIA
+                        <h1 class="text-2xl font-extrabold tracking-tight bg-gradient-to-r from-red-500 via-amber-400 to-white bg-clip-text text-transparent">
+                            PitaMedia.tv
                         </h1>
-                        <span class="px-2.5 py-0.5 text-xs font-semibold rounded-full bg-amber-500/10 text-amber-300 border border-amber-500/30 font-mono">v2.5 · Autonomous Studio</span>
+                        <span class="px-2.5 py-0.5 text-xs font-semibold rounded-full bg-red-500/10 text-red-400 border border-red-500/30 font-mono">Official Autonomous Studio</span>
                     </div>
                     <p class="text-xs text-slate-400 mt-1 flex items-center gap-2">
                         <i class="fa-brands fa-facebook text-blue-400"></i>
