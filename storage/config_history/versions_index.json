@@ -1,5 +1,285 @@
 [
   {
+    "version_id": "app_mode_1789384209_29d4aa7a288f",
+    "config_name": "app_mode",
+    "timestamp": 1789384209,
+    "iso_time": "2026-09-14T11:10:09Z",
+    "changed_by": "DASHBOARD",
+    "reason": "User toggled APP_MODE",
+    "hash": "29d4aa7a288f",
+    "file_path": "C:\\Users\\Cipad\\.gemini\\antigravity-ide\\scratch\\pita-media\\storage\\config_history\\app_mode_1789384209_29d4aa7a288f.json"
+  },
+  {
+    "version_id": "app_mode_1789384202_70d55f0df219",
+    "config_name": "app_mode",
+    "timestamp": 1789384202,
+    "iso_time": "2026-09-14T11:10:02Z",
+    "changed_by": "DASHBOARD",
+    "reason": "User toggled APP_MODE",
+    "hash": "70d55f0df219",
+    "file_path": "C:\\Users\\Cipad\\.gemini\\antigravity-ide\\scratch\\pita-media\\storage\\config_history\\app_mode_1789384202_70d55f0df219.json"
+  },
+  {
+    "version_id": "app_mode_1789384197_29d4aa7a288f",
+    "config_name": "app_mode",
+    "timestamp": 1789384197,
+    "iso_time": "2026-09-14T11:09:57Z",
+    "changed_by": "DASHBOARD",
+    "reason": "User toggled APP_MODE",
+    "hash": "29d4aa7a288f",
+    "file_path": "C:\\Users\\Cipad\\.gemini\\antigravity-ide\\scratch\\pita-media\\storage\\config_history\\app_mode_1789384197_29d4aa7a288f.json"
+  },
+  {
+    "version_id": "app_mode_1789384150_70d55f0df219",
+    "config_name": "app_mode",
+    "timestamp": 1789384150,
+    "iso_time": "2026-09-14T11:09:10Z",
+    "changed_by": "DASHBOARD",
+    "reason": "User toggled APP_MODE",
+    "hash": "70d55f0df219",
+    "file_path": "C:\\Users\\Cipad\\.gemini\\antigravity-ide\\scratch\\pita-media\\storage\\config_history\\app_mode_1789384150_70d55f0df219.json"
+  },
+  {
+    "version_id": "app_mode_1789384127_29d4aa7a288f",
+    "config_name": "app_mode",
+    "timestamp": 1789384127,
+    "iso_time": "2026-09-14T11:08:47Z",
+    "changed_by": "DASHBOARD",
+    "reason": "User toggled APP_MODE",
+    "hash": "29d4aa7a288f",
+    "file_path": "C:\\Users\\Cipad\\.gemini\\antigravity-ide\\scratch\\pita-media\\storage\\config_history\\app_mode_1789384127_29d4aa7a288f.json"
+  },
+  {
+    "version_id": "app_mode_1789383627_70d55f0df219",
+    "config_name": "app_mode",
+    "timestamp": 1789383627,
+    "iso_time": "2026-09-14T11:00:27Z",
+    "changed_by": "DASHBOARD",
+    "reason": "User toggled APP_MODE",
+    "hash": "70d55f0df219",
+    "file_path": "C:\\Users\\Cipad\\.gemini\\antigravity-ide\\scratch\\pita-media\\storage\\config_history\\app_mode_1789383627_70d55f0df219.json"
+  },
+  {
+    "version_id": "app_mode_1789383627_29d4aa7a288f",
+    "config_name": "app_mode",
+    "timestamp": 1789383627,
+    "iso_time": "2026-09-14T11:00:27Z",
+    "changed_by": "DASHBOARD",
+    "reason": "User toggled APP_MODE",
+    "hash": "29d4aa7a288f",
+    "file_path": "C:\\Users\\Cipad\\.gemini\\antigravity-ide\\scratch\\pita-media\\storage\\config_history\\app_mode_1789383627_29d4aa7a288f.json"
+  },
+  {
+    "version_id": "app_mode_1789383627_70d55f0df219",
+    "config_name": "app_mode",
+    "timestamp": 1789383627,
+    "iso_time": "2026-09-14T11:00:27Z",
+    "changed_by": "DASHBOARD",
+    "reason": "User toggled APP_MODE",
+    "hash": "70d55f0df219",
+    "file_path": "C:\\Users\\Cipad\\.gemini\\antigravity-ide\\scratch\\pita-media\\storage\\config_history\\app_mode_1789383627_70d55f0df219.json"
+  },
+  {
+    "version_id": "app_mode_1789383574_70d55f0df219",
+    "config_name": "app_mode",
+    "timestamp": 1789383574,
+    "iso_time": "2026-09-14T10:59:34Z",
+    "changed_by": "DASHBOARD",
+    "reason": "User toggled APP_MODE",
+    "hash": "70d55f0df219",
+    "file_path": "C:\\Users\\Cipad\\.gemini\\antigravity-ide\\scratch\\pita-media\\storage\\config_history\\app_mode_1789383574_70d55f0df219.json"
+  },
+  {
+    "version_id": "app_mode_1789383573_29d4aa7a288f",
+    "config_name": "app_mode",
+    "timestamp": 1789383573,
+    "iso_time": "2026-09-14T10:59:33Z",
+    "changed_by": "DASHBOARD",
+    "reason": "User toggled APP_MODE",
+    "hash": "29d4aa7a288f",
+    "file_path": "C:\\Users\\Cipad\\.gemini\\antigravity-ide\\scratch\\pita-media\\storage\\config_history\\app_mode_1789383573_29d4aa7a288f.json"
+  },
+  {
+    "version_id": "app_mode_1789383573_70d55f0df219",
+    "config_name": "app_mode",
+    "timestamp": 1789383573,
+    "iso_time": "2026-09-14T10:59:33Z",
+    "changed_by": "DASHBOARD",
+    "reason": "User toggled APP_MODE",
+    "hash": "70d55f0df219",
+    "file_path": "C:\\Users\\Cipad\\.gemini\\antigravity-ide\\scratch\\pita-media\\storage\\config_history\\app_mode_1789383573_70d55f0df219.json"
+  },
+  {
+    "version_id": "app_mode_1789383562_70d55f0df219",
+    "config_name": "app_mode",
+    "timestamp": 1789383562,
+    "iso_time": "2026-09-14T10:59:22Z",
+    "changed_by": "DASHBOARD",
+    "reason": "User toggled APP_MODE",
+    "hash": "70d55f0df219",
+    "file_path": "C:\\Users\\Cipad\\.gemini\\antigravity-ide\\scratch\\pita-media\\storage\\config_history\\app_mode_1789383562_70d55f0df219.json"
+  },
+  {
+    "version_id": "app_mode_1789383557_29d4aa7a288f",
+    "config_name": "app_mode",
+    "timestamp": 1789383557,
+    "iso_time": "2026-09-14T10:59:17Z",
+    "changed_by": "DASHBOARD",
+    "reason": "User toggled APP_MODE",
+    "hash": "29d4aa7a288f",
+    "file_path": "C:\\Users\\Cipad\\.gemini\\antigravity-ide\\scratch\\pita-media\\storage\\config_history\\app_mode_1789383557_29d4aa7a288f.json"
+  },
+  {
+    "version_id": "app_mode_1789383557_70d55f0df219",
+    "config_name": "app_mode",
+    "timestamp": 1789383557,
+    "iso_time": "2026-09-14T10:59:17Z",
+    "changed_by": "DASHBOARD",
+    "reason": "User toggled APP_MODE",
+    "hash": "70d55f0df219",
+    "file_path": "C:\\Users\\Cipad\\.gemini\\antigravity-ide\\scratch\\pita-media\\storage\\config_history\\app_mode_1789383557_70d55f0df219.json"
+  },
+  {
+    "version_id": "app_mode_1789383500_70d55f0df219",
+    "config_name": "app_mode",
+    "timestamp": 1789383500,
+    "iso_time": "2026-09-14T10:58:20Z",
+    "changed_by": "DASHBOARD",
+    "reason": "User toggled APP_MODE",
+    "hash": "70d55f0df219",
+    "file_path": "C:\\Users\\Cipad\\.gemini\\antigravity-ide\\scratch\\pita-media\\storage\\config_history\\app_mode_1789383500_70d55f0df219.json"
+  },
+  {
+    "version_id": "app_mode_1789383500_29d4aa7a288f",
+    "config_name": "app_mode",
+    "timestamp": 1789383500,
+    "iso_time": "2026-09-14T10:58:20Z",
+    "changed_by": "DASHBOARD",
+    "reason": "User toggled APP_MODE",
+    "hash": "29d4aa7a288f",
+    "file_path": "C:\\Users\\Cipad\\.gemini\\antigravity-ide\\scratch\\pita-media\\storage\\config_history\\app_mode_1789383500_29d4aa7a288f.json"
+  },
+  {
+    "version_id": "app_mode_1789383500_70d55f0df219",
+    "config_name": "app_mode",
+    "timestamp": 1789383500,
+    "iso_time": "2026-09-14T10:58:20Z",
+    "changed_by": "DASHBOARD",
+    "reason": "User toggled APP_MODE",
+    "hash": "70d55f0df219",
+    "file_path": "C:\\Users\\Cipad\\.gemini\\antigravity-ide\\scratch\\pita-media\\storage\\config_history\\app_mode_1789383500_70d55f0df219.json"
+  },
+  {
+    "version_id": "app_mode_1789383419_70d55f0df219",
+    "config_name": "app_mode",
+    "timestamp": 1789383419,
+    "iso_time": "2026-09-14T10:56:59Z",
+    "changed_by": "DASHBOARD",
+    "reason": "User toggled APP_MODE",
+    "hash": "70d55f0df219",
+    "file_path": "C:\\Users\\Cipad\\.gemini\\antigravity-ide\\scratch\\pita-media\\storage\\config_history\\app_mode_1789383419_70d55f0df219.json"
+  },
+  {
+    "version_id": "app_mode_1789383419_29d4aa7a288f",
+    "config_name": "app_mode",
+    "timestamp": 1789383419,
+    "iso_time": "2026-09-14T10:56:59Z",
+    "changed_by": "DASHBOARD",
+    "reason": "User toggled APP_MODE",
+    "hash": "29d4aa7a288f",
+    "file_path": "C:\\Users\\Cipad\\.gemini\\antigravity-ide\\scratch\\pita-media\\storage\\config_history\\app_mode_1789383419_29d4aa7a288f.json"
+  },
+  {
+    "version_id": "app_mode_1789383419_70d55f0df219",
+    "config_name": "app_mode",
+    "timestamp": 1789383419,
+    "iso_time": "2026-09-14T10:56:59Z",
+    "changed_by": "DASHBOARD",
+    "reason": "User toggled APP_MODE",
+    "hash": "70d55f0df219",
+    "file_path": "C:\\Users\\Cipad\\.gemini\\antigravity-ide\\scratch\\pita-media\\storage\\config_history\\app_mode_1789383419_70d55f0df219.json"
+  },
+  {
+    "version_id": "brand_bible_1789382540_7b4f50697156",
+    "config_name": "brand_bible",
+    "timestamp": 1789382540,
+    "iso_time": "2026-09-14T10:42:20Z",
+    "changed_by": "TEST_SUITE",
+    "reason": "Automated test snapshot",
+    "hash": "7b4f50697156",
+    "file_path": "C:\\Users\\Cipad\\.gemini\\antigravity-ide\\scratch\\pita-media\\storage\\config_history\\brand_bible_1789382540_7b4f50697156.json"
+  },
+  {
+    "version_id": "app_mode_1789382190_29d4aa7a288f",
+    "config_name": "app_mode",
+    "timestamp": 1789382190,
+    "iso_time": "2026-09-14T10:36:30Z",
+    "changed_by": "DASHBOARD",
+    "reason": "User toggled APP_MODE",
+    "hash": "29d4aa7a288f",
+    "file_path": "C:\\Users\\Cipad\\.gemini\\antigravity-ide\\scratch\\pita-media\\storage\\config_history\\app_mode_1789382190_29d4aa7a288f.json"
+  },
+  {
+    "version_id": "brand_bible_1789382190_7b4f50697156",
+    "config_name": "brand_bible",
+    "timestamp": 1789382190,
+    "iso_time": "2026-09-14T10:36:30Z",
+    "changed_by": "TEST_SUITE",
+    "reason": "Automated test snapshot",
+    "hash": "7b4f50697156",
+    "file_path": "C:\\Users\\Cipad\\.gemini\\antigravity-ide\\scratch\\pita-media\\storage\\config_history\\brand_bible_1789382190_7b4f50697156.json"
+  },
+  {
+    "version_id": "brand_bible_1789382144_7b4f50697156",
+    "config_name": "brand_bible",
+    "timestamp": 1789382144,
+    "iso_time": "2026-09-14T10:35:44Z",
+    "changed_by": "TEST_SUITE",
+    "reason": "Automated test snapshot",
+    "hash": "7b4f50697156",
+    "file_path": "C:\\Users\\Cipad\\.gemini\\antigravity-ide\\scratch\\pita-media\\storage\\config_history\\brand_bible_1789382144_7b4f50697156.json"
+  },
+  {
+    "version_id": "app_mode_1789374769_70d55f0df219",
+    "config_name": "app_mode",
+    "timestamp": 1789374769,
+    "iso_time": "2026-09-14T08:32:49Z",
+    "changed_by": "DASHBOARD",
+    "reason": "User toggled APP_MODE",
+    "hash": "70d55f0df219",
+    "file_path": "C:\\Users\\Cipad\\.gemini\\antigravity-ide\\scratch\\pita-media\\storage\\config_history\\app_mode_1789374769_70d55f0df219.json"
+  },
+  {
+    "version_id": "app_mode_1789374767_29d4aa7a288f",
+    "config_name": "app_mode",
+    "timestamp": 1789374767,
+    "iso_time": "2026-09-14T08:32:47Z",
+    "changed_by": "DASHBOARD",
+    "reason": "User toggled APP_MODE",
+    "hash": "29d4aa7a288f",
+    "file_path": "C:\\Users\\Cipad\\.gemini\\antigravity-ide\\scratch\\pita-media\\storage\\config_history\\app_mode_1789374767_29d4aa7a288f.json"
+  },
+  {
+    "version_id": "app_mode_1789374762_70d55f0df219",
+    "config_name": "app_mode",
+    "timestamp": 1789374762,
+    "iso_time": "2026-09-14T08:32:42Z",
+    "changed_by": "DASHBOARD",
+    "reason": "User toggled APP_MODE",
+    "hash": "70d55f0df219",
+    "file_path": "C:\\Users\\Cipad\\.gemini\\antigravity-ide\\scratch\\pita-media\\storage\\config_history\\app_mode_1789374762_70d55f0df219.json"
+  },
+  {
+    "version_id": "app_mode_1789374753_29d4aa7a288f",
+    "config_name": "app_mode",
+    "timestamp": 1789374753,
+    "iso_time": "2026-09-14T08:32:33Z",
+    "changed_by": "DASHBOARD",
+    "reason": "User toggled APP_MODE",
+    "hash": "29d4aa7a288f",
+    "file_path": "C:\\Users\\Cipad\\.gemini\\antigravity-ide\\scratch\\pita-media\\storage\\config_history\\app_mode_1789374753_29d4aa7a288f.json"
+  },
+  {
     "version_id": "brand_bible_1789373767_7b4f50697156",
     "config_name": "brand_bible",
     "timestamp": 1789373767,

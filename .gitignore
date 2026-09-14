@@ -53,9 +53,11 @@ storage/backups/*
 storage/content/*
 storage/cache/*
 storage/logs/*
+storage/config_history/*
 !storage/raw/.gitkeep
 !storage/processed/.gitkeep
 !storage/backups/.gitkeep
+!storage/config_history/.gitkeep
 !storage/logo.png
 
 # Logs & Cache
