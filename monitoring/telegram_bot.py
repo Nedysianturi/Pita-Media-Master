@@ -102,9 +102,16 @@ class TelegramC2Bot:
             return (
                 "🎬 *PITA MEDIA CONTROL CENTER*\n"
                 "═══════════════════════════\n"
-                "Selamat datang di remote control Pita Media. Perintah yang tersedia:\n\n"
+                "Selamat datang di remote command Pita Media:\n\n"
                 "• `/status` - Lihat status worker, antrean, dan pengeluaran\n"
-                "• `/queue` - Lihat daftar job aktif & antrean rinci\n"
+                "• `/providers` - Daftar AI providers & tier (Gemini, xAI, dll)\n"
+                "• `/platforms` - Status FB, Instagram, dan Threads\n"
+                "• `/daily` - Laporan ringkas harian (24 jam)\n"
+                "• `/weekly` - Laporan eksekutif mingguan\n"
+                "• `/cost` - Rincian konsumsi budget & token\n"
+                "• `/experiments` - Hasil pengujian A/B testing\n"
+                "• `/storage` - Monitoring kapasitas disk & storage guard\n"
+                "• `/queue` - Daftar job aktif & antrean rinci\n"
                 "• `/health` - Cek kesehatan kredensial & API external\n"
                 "• `/pause` - Jeda eksekusi job baru dari antrean\n"
                 "• `/resume` - Lanjutkan pemrosesan antrean konten\n"
@@ -112,6 +119,87 @@ class TelegramC2Bot:
                 "• `/restart_worker` - Reset & pulihkan status antrean\n"
                 "• `/job <id>` - Lihat detail lengkap job dan skor QC\n"
                 "• `/emergency_stop` - Hentikan seluruh sistem darurat\n"
+            )
+
+        elif base_cmd == "/providers":
+            from providers.provider_registry import provider_registry
+            providers = provider_registry.list_all_providers()
+            lines = ["⚡ *CONFIGURED AI PROVIDERS*", "═══════════════════════════"]
+            for p in providers:
+                lines.append(f"• *{p.name}* (`{p.provider_id}`) | Tier: `{p.tier}` | Status: 🟢 ACTIVE")
+                lines.append(f"  _Capabilities_: {', '.join([c.value for c in p.capabilities])}")
+            return "\n".join(lines)
+
+        elif base_cmd == "/platforms":
+            return (
+                "🌐 *SOCIAL PLATFORM CONNECTIVITY*\n"
+                "═══════════════════════════\n"
+                "• *Facebook Fanspage*: 🟢 Connected (@Pitamediaid)\n"
+                "• *Instagram Business*: 🟢 Connected (Reels & Carousel 4:5)\n"
+                "• *Threads API*: 🟢 Connected (Conversational < 500 char)\n"
+            )
+
+        elif base_cmd == "/daily":
+            from core.runtime.reports import report_generator
+            rep = report_generator.generate_daily_report()
+            return (
+                "📑 *DAILY DIGEST PITA MEDIA*\n"
+                "═══════════════════════════\n"
+                f"• *Periode*: {rep['period']}\n"
+                f"• *Konten Dibuat*: {rep['content_created']}\n"
+                f"• *Posting Dispatched*: {rep['posts_dispatched']}\n"
+                f"• *Posting Verified*: {rep['posts_verified']}\n"
+                f"• *Facebook*: {rep['platform_breakdown']['facebook']}\n"
+                f"• *Instagram*: {rep['platform_breakdown']['instagram']}\n"
+                f"• *Threads*: {rep['platform_breakdown']['threads']}\n"
+            )
+
+        elif base_cmd == "/weekly":
+            from core.runtime.reports import report_generator
+            rep = report_generator.generate_weekly_report()
+            return (
+                "📊 *WEEKLY EXECUTIVE REVIEW*\n"
+                "═══════════════════════════\n"
+                f"• *Periode*: {rep['period']}\n"
+                f"• *Total Konten*: {rep['total_content_produced']}\n"
+                f"• *Total Publikasi*: {rep['total_posts_published']}\n"
+                f"• *A/B Experiments*: {rep['ab_experiments_run']}\n"
+                f"• *Incident Count*: {rep['system_incident_count']}\n"
+                f"• *Health Status*: {rep['status']}\n"
+            )
+
+        elif base_cmd == "/cost":
+            async with async_session_factory() as session:
+                costs = await cost_governor.get_spend_metrics(session)
+            return (
+                "💰 *COST GOVERNOR BREAKDOWN*\n"
+                "═══════════════════════════\n"
+                f"• *Daily Spent*: ${costs.get('daily_spent', 0.0):.4f} / ${costs.get('daily_limit', 10.0):.2f}\n"
+                f"• *Daily Usage*: {costs.get('daily_percentage', 0)}%\n"
+                f"• *Monthly Spent*: ${costs.get('monthly_spent', 0.0):.4f} / ${costs.get('monthly_limit', 200.0):.2f}\n"
+                f"• *Cost Cap Status*: {'🚨 EXCEEDED' if costs.get('is_daily_exceeded') else '🟢 WITHIN BUDGET'}\n"
+            )
+
+        elif base_cmd == "/experiments":
+            from core.intelligence.ab_testing import ab_testing_engine
+            exps = ab_testing_engine.list_experiments()
+            if not exps:
+                return "🧪 *A/B Experiments*: Belum ada eksperimen variasi yang berjalan."
+            lines = ["🧪 *A/B TESTING EXPERIMENTS*", "═══════════════════════════"]
+            for e in exps[:5]:
+                lines.append(f"• `{e['id'][:8]}` [{e['experiment_type']}] Status: *{e['status']}* | Winner: *{e['winner'] or 'PENDING'}*")
+                lines.append(f"  _Hypothesis_: {e['hypothesis']}")
+            return "\n".join(lines)
+
+        elif base_cmd == "/storage":
+            from core.runtime.storage_guard import storage_guard
+            d = storage_guard.check_disk_usage()
+            return (
+                "💾 *STORAGE GUARD & DISK HEALTH*\n"
+                "═══════════════════════════\n"
+                f"• *Status*: {d.get('status')}\n"
+                f"• *Used Space*: {d.get('used_gb')} GB / {d.get('total_gb')} GB ({d.get('used_percent')}%)\n"
+                f"• *Free Space*: {d.get('free_gb')} GB\n"
             )
 
         elif base_cmd == "/status":

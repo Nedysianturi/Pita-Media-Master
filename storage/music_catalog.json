@@ -1,0 +1,122 @@
+[
+  {
+    "track_id": "track_01",
+    "title": "Echoes of Yesterday",
+    "artist": "Pita Ambient Lab",
+    "mood": "sedih",
+    "bpm": 68,
+    "duration_sec": 120,
+    "license_type": "Creative Commons 0",
+    "file_path": null,
+    "tags": [
+      "piano",
+      "melancholy",
+      "reflection"
+    ]
+  },
+  {
+    "track_id": "track_02",
+    "title": "Midnight Shadow",
+    "artist": "Pita Ambient Lab",
+    "mood": "horror",
+    "bpm": 80,
+    "duration_sec": 95,
+    "license_type": "Creative Commons 0",
+    "file_path": null,
+    "tags": [
+      "suspense",
+      "drone",
+      "dark"
+    ]
+  },
+  {
+    "track_id": "track_03",
+    "title": "Sunny Whistle",
+    "artist": "Pita Acoustic",
+    "mood": "lucu",
+    "bpm": 118,
+    "duration_sec": 75,
+    "license_type": "Creative Commons 0",
+    "file_path": null,
+    "tags": [
+      "cheerful",
+      "ukulele",
+      "playful"
+    ]
+  },
+  {
+    "track_id": "track_04",
+    "title": "Rising Horizon",
+    "artist": "Pita Cinematic",
+    "mood": "inspiratif",
+    "bpm": 95,
+    "duration_sec": 140,
+    "license_type": "Creative Commons 0",
+    "file_path": null,
+    "tags": [
+      "orchestral",
+      "uplifting",
+      "epic"
+    ]
+  },
+  {
+    "track_id": "track_05",
+    "title": "Cassette Memories",
+    "artist": "Pita Retro",
+    "mood": "nostalgia",
+    "bpm": 84,
+    "duration_sec": 110,
+    "license_type": "Creative Commons 0",
+    "file_path": null,
+    "tags": [
+      "lofi",
+      "vintage",
+      "tape_crackle"
+    ]
+  },
+  {
+    "track_id": "track_06",
+    "title": "Crystal Streams",
+    "artist": "Pita ASMR",
+    "mood": "satisfying",
+    "bpm": 72,
+    "duration_sec": 180,
+    "license_type": "Creative Commons 0",
+    "file_path": null,
+    "tags": [
+      "ambient",
+      "foley",
+      "relaxing"
+    ]
+  },
+  {
+    "track_id": "track_07",
+    "title": "The Turning Point",
+    "artist": "Pita Dramatic",
+    "mood": "dramatic",
+    "bpm": 124,
+    "duration_sec": 90,
+    "license_type": "Creative Commons 0",
+    "file_path": null,
+    "tags": [
+      "sub_bass",
+      "ticking",
+      "tension"
+    ]
+  },
+  {
+    "track_id": "track_08",
+    "title": "Warm Hug",
+    "artist": "Pita Acoustic",
+    "mood": "wholesome",
+    "bpm": 76,
+    "duration_sec": 135,
+    "license_type": "Creative Commons 0",
+    "file_path": null,
+    "tags": [
+      "guitar",
+      "calm",
+      "heartwarming"
+    ]
+  }
+]

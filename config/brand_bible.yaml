@@ -1,0 +1,134 @@
+# ==============================================================================
+# PITA MEDIA - OFFICIAL BRAND BIBLE & CREATIVE GUIDELINES
+# ==============================================================================
+# Brand Identity: Pita Media (Pita Waktu Signature)
+# Core Values: Emotional Depth, Visual Storytelling, Authenticity, Timeless Wisdom
+# Target Audience: Gen-Z & Millennials seeking inspiration, historical context & emotional resonance
+# ==============================================================================
+
+brand_profile:
+  name: "Pita Media"
+  handle: "@Pitamediaid"
+  tagline: "Menyulam Waktu, Merangkai Cerita."
+  signature_rubric: "Pita Waktu"
+  established: 2026
+
+visual_identity:
+  logo:
+    path: "assets/logo.png"
+    aspect_ratio: "1:1"
+    usage: "Bottom-right corner (10% padding), opacity 92%"
+  color_palette:
+    primary: "#0F172A"       # Deep Slate Blue / Midnight
+    secondary: "#3B82F6"     # Electric Indigo / Cobalt
+    accent: "#F59E0B"        # Warm Amber / Sun Gold
+    surface: "#1E293B"       # Dark Card Slate
+    text_primary: "#F8FAFC"  # Pure Crisp White
+    text_muted: "#94A3B8"    # Soft Slate Grey
+  typography:
+    heading_font: "Inter, 'Montserrat', sans-serif (Bold / Extra Bold)"
+    body_font: "Inter, 'Plus Jakarta Sans', sans-serif (Regular / Medium)"
+    quote_font: "'Playfair Display', serif (Italic)"
+
+signature_rubrics:
+  pita_waktu:
+    name: "Pita Waktu (Ribbon of Time)"
+    format: "Narrative History / Emotional Journey / Transformation"
+    hook_style: "Pertanyaan reflektif atau kontras sejarah yang memicu rasa ingin tahu seketika"
+    opening_template: "Tahukah kamu, di balik detik yang kita lewati hari ini, ada jejak..."
+    closing_template: "Pita waktu terus berputar. Dari kisah ini, makna apa yang kamu bawa?"
+    visual_signature: "Sinematik, grading warna warm-vintage atau dark-modern, watermark Pita Media halus."
+
+  pita_cerita:
+    name: "Pita Cerita (Storytelling Carousel)"
+    format: "Multi-slide visual story (4 hingga 8 slide)"
+    aspect_ratio: "4:5 (1080x1350) or 1:1"
+    hook_style: "Bold visual headline pada slide pertama"
+    cta_style: "Simpan & bagikan jika kisah ini menyentuhmu."
+
+  pita_transformasi:
+    name: "Pita Transformasi (Before & After / Progress)"
+    format: "Vertical Video (Reels 9:16)"
+    hook_style: "Perubahan dramatis dalam 3 detik pertama"
+    closing_style: "Pelajaran moral dan inspirasi aksi nyata"
+
+  pita_mini:
+    name: "Pita Mini (Shorts & Micro-Facts)"
+    format: "Fast-paced vertical reel (< 45s)"
+    hook_style: "Fakta mengejutkan atau visual loop"
+
+tones_and_emotions:
+  supported_tones:
+    - id: "sedih"
+      label: "Melancholic / Sentimental"
+      music_mood: "Melancholic piano, gentle acoustic, minor key strings"
+      color_mood: "Muted cool tones, subtle blue/cyan grading"
+
+    - id: "horror"
+      label: "Mystery / Thriller / Eerie"
+      music_mood: "Dark drone, suspenseful strings, sudden pauses"
+      color_mood: "High contrast shadows, desaturated greens/blacks"
+
+    - id: "lucu"
+      label: "Humorous / Lighthearted / Witty"
+      music_mood: "Bouncy acoustic, playful pizzicato, cheerful lo-fi"
+      color_mood: "Vibrant warm colors, bright saturation"
+
+    - id: "inspiratif"
+      label: "Inspirational / Epic / Uplifting"
+      music_mood: "Orchestral build-up, triumphant horns, rhythmic drums"
+      color_mood: "Golden hour glow, radiant lens flares"
+
+    - id: "nostalgia"
+      label: "Nostalgic / Retro / Reminiscent"
+      music_mood: "Vintage vinyl crackle, warm 80s/90s synth, acoustic tape"
+      color_mood: "Sepia tint, grainy texture, warm highlights"
+
+    - id: "satisfying"
+      label: "Satisfying / ASMR / Flow State"
+      music_mood: "Ambient chillhop, crisp rhythmic foley, gentle bassline"
+      color_mood: "Clean studio lighting, ultra-sharp details"
+
+    - id: "dramatic"
+      label: "Dramatic / High Tension"
+      music_mood: "Heavy cinematic hits, accelerating ticking clock, deep sub bass"
+      color_mood: "Cinematic teal-and-orange, volumetric fog"
+
+    - id: "wholesome"
+      label: "Heartwarming / Empathy"
+      music_mood: "Soft acoustic guitar, soothing strings, calm lullaby melody"
+      color_mood: "Soft pastel grading, warm amber lighting"
+
+platform_rules:
+  facebook:
+    primary_ratio: "1:1 or 4:5"
+    caption_style: "Narrative long-form (150-300 kata), paragraf berjarak rapi, 3-5 hashtag relevan"
+    cta: "Bagikan pendapatmu di kolom komentar & ikuti Pita Media untuk kisah bermakna setiap hari."
+
+  instagram:
+    primary_ratio: "4:5 (Feed Carousel) or 9:16 (Reels)"
+    caption_style: "Punchy hook (1 baris pertama terlihat sebelum 'more'), 15-20 hashtag tertarget"
+    cta: "Double tap jika cerita ini menyentuh hatimu. Simpan untuk pengingat kelak!"
+
+  threads:
+    primary_ratio: "1:1 or Text-first"
+    caption_style: "Ringkas, conversational, thread-friendly (< 500 karakter)"
+    cta: "Bagaimana sudut pandangmu tentang hal ini? Mari diskusi di utas ini."
+
+content_safety_and_qc:
+  banned_keywords:
+    - "judi"
+    - "slot"
+    - "gacor"
+    - "sensasional"
+    - "hoax"
+    - "sara"
+    - "pornografi"
+    - "kekerasan ekstrim"
+  minimum_visual_quality:
+    min_resolution: "1080x1080"
+    watermark_required: true
+    face_distortion_check: true
+  music_licensing:
+    copyright_safe_only: true
+    commercial_friendly: true

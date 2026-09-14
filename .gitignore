@@ -3,6 +3,13 @@
 *.env
 .env.*
 !.env.example
+storage/.secrets_vault*
+storage/.vault*
+storage/custom_providers.json
+.secrets_vault*
+*.vault*
+*.key
+.runtime_secret*
 
 # Python
 __pycache__/

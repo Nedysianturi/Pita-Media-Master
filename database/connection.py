@@ -28,6 +28,7 @@ def get_engine() -> AsyncEngine:
     connect_args = {}
     if "sqlite" in db_url:
         connect_args["check_same_thread"] = False
+        connect_args["timeout"] = 30.0
 
     engine = create_async_engine(
         db_url,
@@ -41,6 +42,7 @@ def get_engine() -> AsyncEngine:
             cursor = dbapi_connection.cursor()
             cursor.execute("PRAGMA journal_mode=WAL")
             cursor.execute("PRAGMA synchronous=NORMAL")
+            cursor.execute("PRAGMA busy_timeout=30000")
             cursor.execute("PRAGMA foreign_keys=ON")
             cursor.close()
 
