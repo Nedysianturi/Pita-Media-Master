@@ -1,0 +1,118 @@
+# ==============================================================================
+# PITA MEDIA - QUALITY CONTROL (QC) RUBRICS PER PILAR
+# ==============================================================================
+# Setiap pilar memiliki rubrik penilaian spesifik dengan ambang batas (threshold).
+# Status evaluasi:
+#   - PASSED           : Total Score >= 8.0 DAN setiap kategori >= 7.0
+#   - REPAIR_REQUIRED  : Total Score < 8.0 ATAU ada kategori < 7.0 (dan belum melampaui max repair)
+#   - NEEDS_ATTENTION  : Gagal setelah max repair attempts
+#   - BLOCKED          : Gagal pada Hard Safety Gate
+# ==============================================================================
+
+version: "1.0.0"
+
+thresholds:
+  total_pass: 8.0
+  category_pass: 7.0
+  max_repair_attempts: 3
+
+pillars:
+  pita_transformasi:
+    name: "Pita Transformasi"
+    description: "Timelapse / transformasi bertahap kondisi awal -> proses -> perubahan -> detail -> finishing -> final reveal"
+    categories:
+      - id: "visual_continuity"
+        name: "Kontinuitas Visual & Pencahayaan"
+        weight: 0.25
+        min_score: 7.0
+        rubric: "Apakah objek, warna, dan pencahayaan konsisten dari awal sampai akhir tanpa lonjakan aneh?"
+      - id: "stage_progression"
+        name: "Progresi Tahapan Timelapse"
+        weight: 0.25
+        min_score: 7.0
+        rubric: "Apakah tahapan transformasi jelas (awal, proses, perubahan bertahap, detail, reveal)?"
+      - id: "satisfaction_and_pacing"
+        name: "Pacing & Kepuasan Visual"
+        weight: 0.25
+        min_score: 7.0
+        rubric: "Apakah tempo video dinamis, tidak membosankan, dan memberikan payoff yang memuaskan?"
+      - id: "technical_quality"
+        name: "Kualitas Teknis & Artefak AI"
+        weight: 0.25
+        min_score: 7.0
+        rubric: "Bebas dari glitch visual berat, distorsi bentuk yang mengganggu, dan resolusi tajam 9:16."
+
+  pita_mini:
+    name: "Pita Mini"
+    description: "Konstruksi miniatur realistis & memuaskan dari material ke final reveal"
+    categories:
+      - id: "material_realism"
+        name: "Realisme Material & Tekstur"
+        weight: 0.30
+        min_score: 7.0
+        rubric: "Apakah tekstur material (kayu, semen, kaca miniatur) terlihat meyakinkan dan berbobot?"
+      - id: "scale_and_craftsmanship"
+        name: "Proporsi Skala & Ketelitian Miniatur"
+        weight: 0.30
+        min_score: 7.0
+        rubric: "Apakah proporsi detail miniatur konsisten dan menunjukkan ketelitian karya?"
+      - id: "satisfying_factor"
+        name: "Faktor Memuaskan (Oddly Satisfying)"
+        weight: 0.20
+        min_score: 7.0
+        rubric: "Apakah proses perakitan miniatur memberikan rasa puas dan fokus bagi penonton?"
+      - id: "technical_quality"
+        name: "Kualitas Teknis Video"
+        weight: 0.20
+        min_score: 7.0
+        rubric: "Pencahayaan studio miniatur tajam, stabil, dan bersih dari artefak video AI."
+
+  pita_cerita:
+    name: "Pita Cerita"
+    description: "3-5 gambar statis dalam carousel + cerita lengkap 150-300 kata bermakna"
+    categories:
+      - id: "static_image_compliance"
+        name: "Kepatuhan Gambar Statis (Bukan Video)"
+        weight: 0.20
+        min_score: 8.0
+        rubric: "Harus berupa 3-5 gambar statis berkualitas tinggi, bukan video atau slideshow bergerak."
+      - id: "narrative_cohesion"
+        name: "Kohesi Narasi Visual Antar Slide"
+        weight: 0.25
+        min_score: 7.0
+        rubric: "Apakah 3-5 slide gambar memiliki kesinambungan gaya seni, tema emosi, dan alur cerita?"
+      - id: "story_depth_and_length"
+        name: "Kedalaman & Panjang Cerita (150-300 Kata)"
+        weight: 0.35
+        min_score: 7.0
+        rubric: "Apakah teks caption berisi 150-300 kata yang utuh, bermakna, menyentuh, dan tidak menggantung?"
+      - id: "visual_aesthetics"
+        name: "Estetika & Komposisi Visual"
+        weight: 0.20
+        min_score: 7.0
+        rubric: "Gambar memiliki pencahayaan, kontras, dan komposisi artistik kelas premium."
+
+  pita_kreasi:
+    name: "Pita Kreasi"
+    description: "Mengubah bahan sederhana menjadi sesuatu yang menarik & tidak terduga tanpa klaim palsu"
+    categories:
+      - id: "originality_and_unexpected"
+        name: "Orisinalitas & Faktor Ketakterdugaan"
+        weight: 0.35
+        min_score: 7.0
+        rubric: "Seberapa kreatif dan tak terduga hasil kreasi dari bahan sederhana yang digunakan?"
+      - id: "claim_honesty"
+        name: "Kejujuran Klaim & Konteks"
+        weight: 0.25
+        min_score: 8.0
+        rubric: "Tidak ada klaim hoaks atau klaim palsu pembuatan fisik nyata di luar seni konsep/karya."
+      - id: "visual_presentation"
+        name: "Presentasi Visual & Pacing"
+        weight: 0.20
+        min_score: 7.0
+        rubric: "Bagaimana bahan mentah diperlihatkan bertransformasi menjadi kreasi yang estetik."
+      - id: "technical_quality"
+        name: "Kualitas Teknis & Finishing"
+        weight: 0.20
+        min_score: 7.0
+        rubric: "Kerapian visual, ketajaman warna, dan format presentasi yang tepat."

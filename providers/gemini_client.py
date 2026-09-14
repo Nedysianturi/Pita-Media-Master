@@ -1,0 +1,191 @@
+"""
+Client Google Gemini AI untuk Sistem Pita Media.
+Terintegrasi penuh dengan Centralized Gemini Rate Limiter (Jeda 15s Free Tier, Concurrency 1,
+Smart 429 RetryInfo backoff, dan model murni dari .env tanpa hardcoding).
+"""
+
+import json
+import os
+import re
+import time
+import logging
+from datetime import datetime, timezone
+from typing import Dict, Any, Optional, Type, TypeVar
+from pydantic import BaseModel
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from config.settings import settings
+from database.models import CostRecord
+from core.resilience.gemini_rate_limiter import gemini_rate_limiter
+
+logger = logging.getLogger("gemini_client")
+
+try:
+    from google import genai
+    from google.genai import types
+    GENAI_NEW_SDK = True
+except ImportError:
+    import google.generativeai as genai
+    GENAI_NEW_SDK = False
+
+T = TypeVar("T", bound=BaseModel)
+
+
+class GeminiClient:
+    def __init__(self, api_key: Optional[str] = None):
+        self.api_key = api_key or settings.GEMINI_API_KEY
+        self.client = None
+        self.rate_limiter = gemini_rate_limiter
+        if self.api_key:
+            if GENAI_NEW_SDK:
+                try:
+                    self.client = genai.Client(api_key=self.api_key)
+                except Exception:
+                    self.client = None
+            else:
+                genai.configure(api_key=self.api_key)
+
+    def is_configured(self) -> bool:
+        return bool(self.api_key and self.api_key != "your_gemini_api_key_here")
+
+    async def generate_text(
+        self,
+        prompt: str,
+        system_instruction: Optional[str] = None,
+        model: Optional[str] = None,
+        db_session: Optional[AsyncSession] = None,
+        job_id: Optional[str] = None,
+    ) -> str:
+        """
+        Menghasilkan teks dari Gemini dengan Centralized Rate Limiting dan Smart 429 Retry.
+        Model dipilih murni dari parameter atau .env (settings.GEMINI_TEXT_MODEL).
+        """
+        target_model = model or settings.GEMINI_TEXT_MODEL
+
+        if not self.is_configured() or not self.client:
+            return f"[MOCK TEXT RESPONSE]: Narasi estetika untuk {prompt[:40]}..."
+
+        max_retries = settings.GEMINI_MAX_RETRIES_429
+        attempt = 1
+
+        # Kunci mutex concurrency = 1
+        async with self.rate_limiter.lock:
+            while attempt <= max_retries:
+                # 1. Tunggu slot interval aman (minimal 15s)
+                await self.rate_limiter.acquire_slot(target_model)
+
+                try:
+                    if GENAI_NEW_SDK and self.client:
+                        config = {}
+                        if system_instruction:
+                            config["system_instruction"] = system_instruction
+
+                        response = self.client.models.generate_content(
+                            model=target_model,
+                            contents=prompt,
+                            config=config if config else None,
+                        )
+                        text_out = response.text or ""
+
+                        # Catat estimasi biaya
+                        if hasattr(response, "usage_metadata") and response.usage_metadata and db_session:
+                            total_tokens = getattr(response.usage_metadata, "total_token_count", 0) or 0
+                            cost_est = (total_tokens / 1_000_000) * 0.10
+                            cost_rec = CostRecord(
+                                job_id=job_id,
+                                service="gemini_text",
+                                token_count=total_tokens,
+                                estimated_cost_usd=cost_est,
+                            )
+                            db_session.add(cost_rec)
+                            await db_session.commit()
+
+                        return text_out
+
+                    else:
+                        model_inst = genai.GenerativeModel(
+                            model_name=target_model,
+                            system_instruction=system_instruction,
+                        )
+                        response = model_inst.generate_content(prompt)
+                        return response.text or ""
+
+                except Exception as e:
+                    err_msg = str(e)
+
+                    # Jika 429 RESOURCE_EXHAUSTED: Gunakan smart backoff dan retry model yang SAMA
+                    if "429" in err_msg or "RESOURCE_EXHAUSTED" in err_msg or "quota" in err_msg.lower():
+                        if attempt < max_retries:
+                            await self.rate_limiter.handle_429_backoff(target_model, e, attempt)
+                            attempt += 1
+                            continue
+                        else:
+                            logger.error(f"Batas retry 429 ({max_retries}) tercapai untuk model '{target_model}'.")
+                            raise RuntimeError(f"Gemini API 429 (Rate Limit Terlampaui setelah {max_retries} retry): {e}")
+
+                    # Jika error model tidak ditemukan (404)
+                    if "404" in err_msg or "NOT_FOUND" in err_msg:
+                        logger.error(f"Model '{target_model}' tidak ditemukan di API version ini.")
+                        raise RuntimeError(f"Model '{target_model}' dari .env tidak didukung atau tidak ditemukan: {e}")
+
+                    # Error lainnya
+                    logger.error(f"Error memanggil Gemini API ({target_model}): {e}")
+                    raise RuntimeError(f"Gagal memanggil Gemini API ({target_model}): {e}")
+
+        raise RuntimeError(f"Gagal memproses request Gemini setelah {max_retries} percobaan.")
+
+    async def generate_structured(
+        self,
+        prompt: str,
+        schema: Type[T],
+        system_instruction: Optional[str] = None,
+        model: Optional[str] = None,
+        db_session: Optional[AsyncSession] = None,
+        job_id: Optional[str] = None,
+    ) -> T:
+        """
+        Menghasilkan output terstruktur yang tervalidasi dengan skema Pydantic.
+        Model dipilih murni dari parameter atau .env (settings.GEMINI_PRO_MODEL).
+        """
+        target_model = model or settings.GEMINI_PRO_MODEL
+
+        if not self.is_configured() or not self.client:
+            return schema.model_construct()
+
+        schema_json = json.dumps(schema.model_json_schema())
+        enforced_prompt = (
+            f"{prompt}\n\n"
+            f"KEMBALIKAN OUTPUT HARUS HANYA BERUPA JSON VALID SESUAI SKEMA BERIKUT (TANPA PENJELASAN LAIN DAN TANPA MARKDOWN BACKTICKS):\n"
+            f"{schema_json}"
+        )
+
+        raw_output = await self.generate_text(
+            prompt=enforced_prompt,
+            system_instruction=system_instruction,
+            model=target_model,
+            db_session=db_session,
+            job_id=job_id,
+        )
+
+        try:
+            cleaned = raw_output.strip()
+            if cleaned.startswith("```json"):
+                cleaned = cleaned[7:]
+            elif cleaned.startswith("```"):
+                cleaned = cleaned[3:]
+            if cleaned.endswith("```"):
+                cleaned = cleaned[:-3]
+            cleaned = cleaned.strip()
+
+            match = re.search(r"\{.*\}", cleaned, re.DOTALL)
+            if match:
+                cleaned = match.group(0)
+
+            parsed = json.loads(cleaned)
+            return schema.model_validate(parsed)
+        except Exception as parse_err:
+            logger.warning(f"Gagal parse output JSON: {parse_err}. Menggunakan konstruksi aman.")
+            return schema.model_construct()
+
+
+gemini_client = GeminiClient()

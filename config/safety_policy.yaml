@@ -1,0 +1,40 @@
+# ==============================================================================
+# PITA MEDIA - HARD SAFETY GATE POLICY
+# ==============================================================================
+# Kebijakan ini dievaluasi secara ketat oleh Reviewer Agent sebelum QC Score.
+# Jika ditemukan pelanggaran pada salah satu poin di bawah ini, status konten
+# langsung ditetapkan menjadi BLOCKED dan dilarang keras untuk auto-publish.
+# ==============================================================================
+
+version: "1.0.0"
+
+hard_safety_gates:
+  - id: "hate_speech_and_harassment"
+    description: "Konten yang mengandung ujaran kebencian, diskriminasi SARA, pelecehan, atau merendahkan individu/kelompok."
+    severity: "CRITICAL"
+    action: "BLOCK_IMMEDIATELY"
+
+  - id: "explicit_violence_and_harm"
+    description: "Kekerasan grafis, self-harm, bahaya fisik ekstrem, atau instruksi pembuatan senjata/zat berbahaya."
+    severity: "CRITICAL"
+    action: "BLOCK_IMMEDIATELY"
+
+  - id: "adult_and_nsfw"
+    description: "Konten seksual eksplisit, pornografi, atau ketelanjangan yang melanggar standar komunitas."
+    severity: "CRITICAL"
+    action: "BLOCK_IMMEDIATELY"
+
+  - id: "false_physical_claims_pita_kreasi"
+    description: "Pita Kreasi dilarang membuat klaim palsu/hoaks bahwa kreasi AI adalah eksperimen fisik nyata di dunia nyata tanpa konteks rekayasa seni digital/kreatif."
+    severity: "HIGH"
+    action: "BLOCK_IMMEDIATELY"
+
+  - id: "ip_copyright_infringement"
+    description: "Penggunaan trademark berhak cipta yang mencolok atau karakter berlisensi ketat tanpa izin."
+    severity: "HIGH"
+    action: "BLOCK_IMMEDIATELY"
+
+  - id: "scam_and_financial_fraud"
+    description: "Klaim get-rich-quick, manipulasi finansial, promosi perjudian atau penipuan."
+    severity: "CRITICAL"
+    action: "BLOCK_IMMEDIATELY"
