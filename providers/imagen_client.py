@@ -62,7 +62,8 @@ class ImagenClient:
             return self._create_mock_image(str(dest_file), prompt, title=title, pilar=pilar, slide_idx=slide_idx, total_slides=total_slides)
 
         try:
-            result = self.client.models.generate_images(
+            result = await asyncio.to_thread(
+                self.client.models.generate_images,
                 model=self.model,
                 prompt=prompt,
                 config=types.GenerateImagesConfig(

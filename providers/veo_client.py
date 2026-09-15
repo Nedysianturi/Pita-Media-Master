@@ -61,7 +61,8 @@ class VeoClient:
 
         try:
             # Panggilan Veo 2.0 API tanpa parameter unsupported di Developer Mode
-            operation = self.client.models.generate_videos(
+            operation = await asyncio.to_thread(
+                self.client.models.generate_videos,
                 model=self.model,
                 prompt=prompt,
                 config=types.GenerateVideosConfig(
@@ -76,7 +77,7 @@ class VeoClient:
             poll_count = 0
             while not operation.done and poll_count < 15:
                 await asyncio.sleep(8)
-                operation = self.client.operations.get(operation)
+                operation = await asyncio.to_thread(self.client.operations.get, operation)
                 poll_count += 1
 
             if operation.error:

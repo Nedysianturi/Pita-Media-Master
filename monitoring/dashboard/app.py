@@ -2121,7 +2121,11 @@ async def serve_dashboard(_: bool = Depends(verify_dashboard_access)):
 
             if (tabId === 'overview') pollStats();
             if (tabId === 'learning') fetchLearningData();
-            if (tabId === 'content') fetchContent();
+            if (tabId === 'content') {{
+                fetchContent();
+                fetchQueue();
+                fetchReceipts();
+            }}
             if (tabId === 'queue') fetchQueue();
             if (tabId === 'receipts') fetchReceipts();
             if (tabId === 'providers' || tabId === 'credentials') {{
@@ -3476,16 +3480,20 @@ async def serve_dashboard(_: bool = Depends(verify_dashboard_access)):
                 const d = await res.json();
                 if (d.success) {{
                     showToast('✅ ' + d.message);
+                    fetchQueue();
+                    fetchContent();
+                    pollStats();
                     setTimeout(() => {{
                         fetchContent();
                         fetchQueue();
+                        fetchReceipts();
                         pollStats();
-                    }}, 2000);
+                    }}, 2500);
                 }} else {{
-                    showToast('Eror: ' + (d.detail || 'Gagal memicu studio'));
+                    showToast('🔴 Eror: ' + (d.detail || d.message || 'Gagal memicu studio'));
                 }}
             }} catch (e) {{
-                showToast('Eror jaringan: ' + e.message);
+                showToast('🔴 Eror jaringan: ' + e.message);
             }}
         }}
 

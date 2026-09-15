@@ -111,7 +111,8 @@ class GeminiClient:
                         if system_instruction:
                             config["system_instruction"] = system_instruction
 
-                        response = self.client.models.generate_content(
+                        response = await asyncio.to_thread(
+                            self.client.models.generate_content,
                             model=target_model,
                             contents=prompt,
                             config=config if config else None,
@@ -138,7 +139,7 @@ class GeminiClient:
                             model_name=target_model,
                             system_instruction=system_instruction,
                         )
-                        response = model_inst.generate_content(prompt)
+                        response = await asyncio.to_thread(model_inst.generate_content, prompt)
                         return response.text or ""
 
                 except Exception as e:
