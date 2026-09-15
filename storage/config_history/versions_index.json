@@ -1,5 +1,15 @@
 [
   {
+    "version_id": "app_mode_1789435708_29d4aa7a288f",
+    "config_name": "app_mode",
+    "timestamp": 1789435708,
+    "iso_time": "2026-09-15T01:28:28Z",
+    "changed_by": "DASHBOARD",
+    "reason": "User toggled APP_MODE",
+    "hash": "29d4aa7a288f",
+    "file_path": "C:\\Users\\Cipad\\.gemini\\antigravity-ide\\scratch\\pita-media\\storage\\config_history\\app_mode_1789435708_29d4aa7a288f.json"
+  },
+  {
     "version_id": "app_mode_1789387607_29d4aa7a288f",
     "config_name": "app_mode",
     "timestamp": 1789387607,

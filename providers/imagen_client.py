@@ -26,7 +26,8 @@ except ImportError:
 
 class ImagenClient:
     def __init__(self, api_key: Optional[str] = None):
-        self.api_key = api_key or settings.GEMINI_API_KEY
+        from core.security.secret_store import secret_store
+        self.api_key = api_key or secret_store.get_secret("GEMINI_PRIMARY_API_KEY") or secret_store.get_secret("GEMINI_API_KEY") or settings.GEMINI_API_KEY
         self.model = settings.GEMINI_IMAGE_MODEL
         self.client = None
         if self.api_key and GENAI_NEW_SDK:

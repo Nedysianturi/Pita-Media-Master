@@ -197,3 +197,40 @@ Skor kematangan sistem dihitung berdasarkan 6 pilar empiris:
 - `/strategy` : Strategi aktif dan persentase alokasi pilar saat ini.
 - `/lessons` : Daftar pola unggul yang terdistilasi dalam Knowledge Base.
 - `/recommendations` : Rekomendasi kenaikan level otonomi teranalisis.
+
+---
+
+## 🔐 Persistent Credential Vault & Security Hardening
+
+Sistem **Pita Media** mengimplementasikan arsitektur keamanan tingkat enterprise untuk memastikan seluruh token, API key, dan kredensial media sosial tersimpan secara persisten, aman, dan tahan banting terhadap *crash*, restart sistem operasi, maupun pembaharuan kode.
+
+### 🛡️ Fitur Utama Keamanan Vault:
+
+1. **Dual-Layer Encryption at Rest**:
+   - Enkripsi native menggunakan **Windows DPAPI** (`CryptProtectData`/`CryptUnprotectData`).
+   - Fallback authenticated cipher **AES-256-GCM** dengan derivasi kunci berbasis **PBKDF2-HMAC-SHA256** (100.000 iterasi).
+   - Tersimpan di `storage/secure/credentials.vault` dan otomatis terabaikan oleh Git (`.gitignore`).
+
+2. **Zero Plaintext Secret Leakage**:
+   - **Centralized Redaction Filter**: Semua output terminal, file log (`logs/*.log`), dan pesan audit otomatis menyaring pola API key (Google `AIzaSy...`, Meta `EAA...`, xAI `xai-...`, Telegram `bot...`).
+   - **Masked Fingerprints**: Nilai token hanya ditampilkan dalam format sidik jari aman (contoh: `••••••••7XQ2`) dan tidak pernah dikembalikan dalam format mentah ke browser.
+   - **No Reveal Button**: Tidak ada tombol untuk mengekspos token mentah di Web Command Center demi kepatuhan ISO 27001 / SOC 2.
+   - **Database Isolation**: Kolom SQLite `jobs`, `publications`, dan `audit_logs` dilarang menyimpan API key mentah.
+
+3. **Multi-Generational Backup & Safe Mode**:
+   - Setiap operasi penyimpanan secara atomik membuat rotasi backup `.bak1` dan `.bak2` dengan `fsync`.
+   - Jika berkas utama `credentials.vault` terdeteksi rusak, sistem secara otomatis memulihkan dari `.bak1` atau `.bak2`.
+   - Jika semua berkas rusak, sistem masuk ke **Safe Mode** untuk mencegah *crash*, mengisolasi operasi, dan mengirim peringatan darurat ke Telegram Admin.
+
+4. **Atomic Secret Replacement**:
+   - Siklus penggantian kredensial: `PENDING` $\rightarrow$ `PREFLIGHT TEST` $\rightarrow$ `ACTIVE`.
+   - Jika uji koneksi gagal, sistem otomatis membatalkan penggantian dan mempertahankan kunci lama yang terbukti bekerja (`PREVIOUS`).
+
+5. **Encrypted Disaster Recovery (`.pmvault`)**:
+   - Ekspor dan impor brankas kredensial terenkripsi AES-256-GCM dengan passphrase mandiri.
+   - Peringatan keamanan: *"Password backup tidak dapat dipulihkan oleh sistem Pita Media jika hilang."*
+
+6. **12 Status Pemantauan Kesehatan Kredensial**:
+   - `NOT_CONFIGURED`, `VALID`, `INVALID`, `EXPIRED`, `EXPIRING_SOON`, `MISSING_PERMISSION`, `RATE_LIMITED`, `QUOTA_EXHAUSTED`, `DISABLED`, `NEEDS_ATTENTION`, `UNKNOWN`, `VALID_EXPIRY_UNKNOWN`.
+   - Status `RATE_LIMITED` (HTTP 429) secara ketat dipisahkan dari `INVALID` agar kendala batas kuota sementara tidak memicu penghapusan atau penonaktifan kredensial yang valid.
+

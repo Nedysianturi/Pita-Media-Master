@@ -22,8 +22,9 @@ class FacebookClient:
         access_token: Optional[str] = None,
         api_version: Optional[str] = None,
     ):
-        self.page_id = page_id if page_id is not None else settings.FB_PAGE_ID
-        self.access_token = access_token if access_token is not None else settings.FB_PAGE_ACCESS_TOKEN
+        from core.security.secret_store import secret_store
+        self.page_id = page_id if page_id is not None else (os.environ.get("FB_PAGE_ID") or secret_store.get_secret("FB_PAGE_ID") or settings.FB_PAGE_ID)
+        self.access_token = access_token if access_token is not None else (secret_store.get_secret("META_SYSTEM_USER_TOKEN") or secret_store.get_secret("FB_PAGE_ACCESS_TOKEN") or settings.FB_PAGE_ACCESS_TOKEN)
         self.api_version = api_version if api_version is not None else (settings.FB_API_VERSION or "v26.0")
         self.base_url = f"https://graph.facebook.com/{self.api_version}"
         self._cached_page_token: Optional[str] = None
@@ -267,5 +268,36 @@ class FacebookClient:
             "type": "photo",
         }
 
+    async def preflight_check(self) -> bool:
+        """Performs a quick validation check on the configured Facebook token and page access."""
+        if not self.access_token or self.access_token.startswith("mock_"):
+            return False
+        try:
+            async with httpx.AsyncClient(timeout=8.0) as client:
+                url = f"{self.base_url}/me?access_token={self.access_token}"
+                res = await client.get(url)
+                return res.status_code == 200
+        except Exception:
+            return False
+
+    async def test_connection(self) -> Dict[str, Any]:
+        """Tests Facebook connection and returns diagnostic result."""
+        if not self.access_token:
+            return {"status": "NOT_CONFIGURED", "message": "Facebook Access Token belum diatur."}
+        try:
+            async with httpx.AsyncClient(timeout=8.0) as client:
+                url = f"{self.base_url}/me?access_token={self.access_token}"
+                res = await client.get(url)
+                if res.status_code == 200:
+                    data = res.json()
+                    return {"status": "VALID", "message": f"Terhubung ke Facebook: {data.get('name', 'OK')}", "data": data}
+                elif res.status_code == 429:
+                    return {"status": "RATE_LIMITED", "message": "Facebook Graph API rate limit tercapai."}
+                else:
+                    return {"status": "INVALID", "message": f"Facebook error {res.status_code}: {res.text[:100]}"}
+        except Exception as e:
+            return {"status": "INVALID", "message": f"Gagal menghubungi Facebook API: {str(e)}"}
+
 
 facebook_client = FacebookClient()
+

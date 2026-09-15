@@ -39,7 +39,7 @@ class BaseAIProvider(ABC):
     ):
         self.provider_id = provider_id
         self.display_name = display_name
-        self.api_key = api_key or ""
+        self._api_key = api_key or ""
         self.base_url = base_url or ""
         self.default_model = default_model
         self.secondary_model = secondary_model
@@ -48,6 +48,15 @@ class BaseAIProvider(ABC):
         self.rate_limit_rpm = rate_limit_rpm
         self.enabled = enabled
         self.priority = priority
+
+    @property
+    def api_key(self) -> str:
+        return self._api_key
+
+    @api_key.setter
+    def api_key(self, value: str):
+        self._api_key = value
+
 
     def supports(self, capability: AICapability) -> bool:
         """Checks if provider supports a given capability."""

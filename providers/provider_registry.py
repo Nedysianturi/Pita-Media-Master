@@ -1,10 +1,11 @@
 """
 Pita Media Enterprise AI Engine - Provider Registry
 Central dynamic catalog for AI Providers.
-Enables '+ ADD PROVIDER' from Dashboard without modifying source code.
+Stores only secret_ref pointers (no plaintext secrets in custom_providers.json).
 """
 
 import os
+import re
 import json
 import logging
 from pathlib import Path
@@ -13,13 +14,54 @@ from typing import Dict, Any, List, Optional
 from providers.base_provider import BaseAIProvider, AICapability
 from providers.gemini_provider import gemini_provider
 from providers.xai_provider import xai_provider
+from core.security.secret_store import secret_store
 
 logger = logging.getLogger("pita.providers.registry")
 
 CUSTOM_PROVIDERS_FILE = Path("storage/custom_providers.json")
 
+
 class GenericCustomProvider(BaseAIProvider):
-    """Generic OpenAI-compatible / Custom API Provider adapter."""
+    """Generic OpenAI-compatible / Custom API Provider adapter with secret_ref pointer."""
+    def __init__(
+        self,
+        provider_id: str,
+        display_name: str,
+        secret_ref: str,
+        base_url: str,
+        default_model: str,
+        secondary_model: Optional[str] = None,
+        capabilities: Optional[List[AICapability]] = None,
+        cost_per_1m_tokens_usd: float = 0.20,
+        rate_limit_rpm: int = 20,
+        enabled: bool = True,
+        priority: int = 5
+    ):
+        super().__init__(
+            provider_id=provider_id,
+            display_name=display_name,
+            api_key="",
+            base_url=base_url,
+            default_model=default_model,
+            secondary_model=secondary_model,
+            capabilities=capabilities or [AICapability.TEXT, AICapability.REASONING],
+            cost_per_1m_tokens_usd=cost_per_1m_tokens_usd,
+            rate_limit_rpm=rate_limit_rpm,
+            enabled=enabled,
+            priority=priority
+        )
+        self.secret_ref = secret_ref
+
+    @property
+    def api_key(self) -> str:
+        """Retrieves raw key in-memory from SecretStore via pointer."""
+        return secret_store.get_secret(self.secret_ref) or self._api_key or ""
+
+    @api_key.setter
+    def api_key(self, value: str):
+        self._api_key = value
+
+
     async def generate_text(self, prompt: str, system_instruction: Optional[str] = None, model: Optional[str] = None, db_session = None, job_id = None) -> str:
         import httpx
         target_model = model or self.default_model
@@ -34,7 +76,7 @@ class GenericCustomProvider(BaseAIProvider):
         async with httpx.AsyncClient(timeout=30.0) as client:
             resp = await client.post(url, headers=headers, json={"model": target_model, "messages": messages})
             if resp.status_code != 200:
-                raise RuntimeError(f"Custom Provider '{self.display_name}' Error (HTTP {resp.status_code}): {resp.text}")
+                raise RuntimeError(f"Custom Provider '{self.display_name}' Error (HTTP {resp.status_code})")
             return resp.json()["choices"][0]["message"]["content"]
 
     async def generate_structured(self, prompt: str, schema, system_instruction = None, model = None, db_session = None, job_id = None):
@@ -60,6 +102,12 @@ class GenericCustomProvider(BaseAIProvider):
             return {"status": "INVALID", "latency_ms": lat, "message": f"HTTP {resp.status_code}"}
         except Exception as e:
             return {"status": "NEEDS_ATTENTION", "message": f"Connection error: {e}"}
+
+    def to_dict(self) -> Dict[str, Any]:
+        d = super().to_dict()
+        d["secret_ref"] = self.secret_ref
+        return d
+
 
 
 class ProviderRegistry:
@@ -99,15 +147,19 @@ class ProviderRegistry:
         rate_limit_rpm: int = 20,
         priority: int = 5
     ) -> BaseAIProvider:
-        """Adds and persists a new custom AI provider."""
-        import re
+        """Adds and persists a new custom AI provider with pointer reference."""
         provider_id = re.sub(r'[^a-zA-Z0-9_]', '', provider_name.lower().replace(" ", "_"))
         caps = [AICapability(c) for c in (capabilities or ["TEXT"])]
+        secret_ref = f"CUSTOM_PROVIDER_{provider_id.upper()}_KEY"
 
+        # 1. Store secret securely in SecretStore
+        secret_store.set_secret(secret_ref, api_key, provider=provider_id, created_by="PROVIDER_REGISTRY")
+
+        # 2. Register GenericCustomProvider
         custom_prov = GenericCustomProvider(
             provider_id=provider_id,
             display_name=provider_name,
-            api_key=api_key,
+            secret_ref=secret_ref,
             base_url=base_url,
             default_model=default_model,
             secondary_model=secondary_model,
@@ -127,10 +179,11 @@ class ProviderRegistry:
         custom_data = []
         for pid, p in self._providers.items():
             if pid not in ["gemini", "xai"]:
+                secret_ref = getattr(p, "secret_ref", f"CUSTOM_PROVIDER_{pid.upper()}_KEY")
                 custom_data.append({
                     "provider_id": p.provider_id,
                     "display_name": p.display_name,
-                    "api_key": p.api_key,
+                    "secret_ref": secret_ref,
                     "base_url": p.base_url,
                     "default_model": p.default_model,
                     "secondary_model": p.secondary_model,
@@ -154,10 +207,16 @@ class ProviderRegistry:
                 items = json.load(f)
             for item in items:
                 caps = [AICapability(c) for c in item.get("capabilities", ["TEXT"])]
+                secret_ref = item.get("secret_ref") or f"CUSTOM_PROVIDER_{item['provider_id'].upper()}_KEY"
+                
+                # If legacy file had plaintext api_key, migrate it to secret_store
+                if "api_key" in item and item["api_key"]:
+                    secret_store.set_secret(secret_ref, item["api_key"], provider=item["provider_id"])
+
                 prov = GenericCustomProvider(
                     provider_id=item["provider_id"],
                     display_name=item["display_name"],
-                    api_key=item.get("api_key", ""),
+                    secret_ref=secret_ref,
                     base_url=item.get("base_url", ""),
                     default_model=item.get("default_model", ""),
                     secondary_model=item.get("secondary_model"),
@@ -170,5 +229,6 @@ class ProviderRegistry:
                 self.register_provider(prov)
         except Exception as e:
             logger.warning(f"Could not load custom providers: {e}")
+
 
 provider_registry = ProviderRegistry()

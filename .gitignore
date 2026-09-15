@@ -5,11 +5,15 @@
 !.env.example
 storage/.secrets_vault*
 storage/.vault*
+storage/secure/*
+!storage/secure/.gitkeep
 storage/custom_providers.json
 .secrets_vault*
 *.vault*
+*.pmvault
 *.key
 .runtime_secret*
+
 
 # Python
 __pycache__/

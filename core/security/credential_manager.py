@@ -525,3 +525,4 @@ class CentralCredentialManager:
             logger.warning(f"Could not record credential audit: {e}")
 
 credential_manager = CentralCredentialManager()
+CredentialManager = CentralCredentialManager

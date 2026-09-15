@@ -38,8 +38,9 @@ class GeminiClient:
         if api_key:
             self.api_keys = [api_key]
         else:
-            k1 = settings.GEMINI_API_KEY
-            k2 = getattr(settings, "GEMINI_API_KEY_2", "")
+            from core.security.secret_store import secret_store
+            k1 = secret_store.get_secret("GEMINI_PRIMARY_API_KEY") or secret_store.get_secret("GEMINI_API_KEY") or settings.GEMINI_API_KEY
+            k2 = secret_store.get_secret("GEMINI_BACKUP_API_KEY") or secret_store.get_secret("GEMINI_API_KEY_2") or getattr(settings, "GEMINI_API_KEY_2", "")
             for k in [k1, k2]:
                 if k and k != "your_gemini_api_key_here" and k not in self.api_keys:
                     self.api_keys.append(k)
