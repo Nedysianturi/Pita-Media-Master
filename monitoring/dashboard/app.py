@@ -866,6 +866,38 @@ async def serve_dashboard(_: bool = Depends(verify_dashboard_access)):
     ctrl = control_bus.get_state()
     is_paused = ctrl.get("is_paused", False)
     worker_status = ctrl.get("status", "RUNNING")
+    is_emergency = ctrl.get("is_emergency_stopped", False) or worker_status in ["EMERGENCY_STOP", "EMERGENCY_STOPPED"]
+
+    if is_emergency:
+        status_label = "EMERGENCY STOP"
+        status_icon = "🔴"
+        status_color = "#EF4444"
+        status_bg = "rgba(239, 68, 68, 0.15)"
+        status_border = "rgba(239, 68, 68, 0.35)"
+    elif is_paused:
+        status_label = "DIJEDA"
+        status_icon = "🟠"
+        status_color = "#F97316"
+        status_bg = "rgba(249, 115, 22, 0.15)"
+        status_border = "rgba(249, 115, 22, 0.35)"
+    elif worker_status in ["STOPPED", "OFFLINE", "DISABLED", "DEAD"]:
+        status_label = "OFFLINE"
+        status_icon = "⚫"
+        status_color = "#94A3B8"
+        status_bg = "rgba(148, 163, 184, 0.15)"
+        status_border = "rgba(148, 163, 184, 0.35)"
+    elif app_mode == "PRODUCTION":
+        status_label = "PRODUKSI AKTIF"
+        status_icon = "🟢"
+        status_color = "#10B981"
+        status_bg = "rgba(16, 185, 129, 0.15)"
+        status_border = "rgba(16, 185, 129, 0.35)"
+    else:
+        status_label = "SIMULASI AKTIF"
+        status_icon = "🟡"
+        status_color = "#F59E0B"
+        status_bg = "rgba(245, 158, 11, 0.15)"
+        status_border = "rgba(245, 158, 11, 0.35)"
 
     # Pre-render initial data directly from SQLite DB so the page loads with zero lag
     async with async_session_factory() as db:
@@ -1199,19 +1231,21 @@ async def serve_dashboard(_: bool = Depends(verify_dashboard_access)):
     
     <div class="main-wrapper">
         <div class="topbar">
-            <div style="display: flex; align-items: center; gap: 16px;">
-                <div id="mode-badge" class="mode-banner {'mode-prod' if app_mode == 'PRODUCTION' else 'mode-dry'}">
-                    {'🚀 PRODUCTION MODE (LIVE)' if app_mode == 'PRODUCTION' else '🛡️ DRY_RUN MODE (SIMULATED)'}
-                </div>
-                <button class="btn btn-outline" style="font-size: 0.75rem; padding: 6px 12px;" onclick="handleModeSwitchClick()">Switch Mode</button>
-            </div>
             <div style="display: flex; align-items: center; gap: 12px;">
-                <span id="system-status-pill" style="font-size: 0.82rem; font-weight: 700; color: {'#EF4444' if worker_status == 'EMERGENCY_STOP' else ('#F59E0B' if is_paused else '#34D399')}; display:flex; align-items:center; gap:6px; background:rgba(16,185,129,0.1); padding:5px 12px; border-radius:9999px; border:1px solid rgba(16,185,129,0.25);">
-                    <span class="pulse-dot" style="background:{'#EF4444' if worker_status == 'EMERGENCY_STOP' else ('#F59E0B' if is_paused else '#10B981')};"></span> <span id="system-status-text">{worker_status if not is_paused else 'PAUSED'}</span>
-                </span>
-                <button id="btn-ctrl-stop" class="btn btn-danger" style="font-size: 0.75rem;" onclick="sendControl('EMERGENCY_STOP')">Emergency Stop</button>
-                <button id="btn-ctrl-pause" class="btn btn-outline" style="font-size: 0.75rem;" onclick="sendControl('PAUSE')" {'disabled' if is_paused else ''}>Pause</button>
-                <button id="btn-ctrl-resume" class="btn btn-primary" style="font-size: 0.75rem;" onclick="sendControl('RESUME')" {'disabled' if not is_paused else ''}>Resume</button>
+                <div id="main-status-badge" 
+                     class="main-status-pill" 
+                     onclick="handleModeSwitchClick()" 
+                     title="Klik untuk beralih mode operasional (Simulasi / Produksi)"
+                     style="font-size: 0.84rem; font-weight: 700; color: {status_color}; display:flex; align-items:center; gap:8px; background:{status_bg}; padding:6px 14px; border-radius:9999px; border:1px solid {status_border}; cursor:pointer; user-select:none; transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);">
+                    <span class="pulse-dot" id="status-dot" style="background:{status_color};"></span>
+                    <span id="main-status-text">{status_icon} {status_label}</span>
+                    <span id="mode-switch-hint" style="font-size: 0.70rem; opacity: 0.65; margin-left: 2px; border-left: 1px solid rgba(255,255,255,0.2); padding-left: 6px;">▾ Ubah Mode</span>
+                </div>
+            </div>
+            <div style="display: flex; align-items: center; gap: 10px;">
+                <button id="btn-ctrl-pause" class="btn btn-outline" style="font-size: 0.75rem; padding: 6px 14px; display: {'none' if (is_paused or is_emergency) else 'inline-flex'};" onclick="sendControl('PAUSE')">⏸️ Pause</button>
+                <button id="btn-ctrl-resume" class="btn btn-primary" style="font-size: 0.75rem; padding: 6px 14px; display: {'inline-flex' if (is_paused and not is_emergency) else 'none'};" onclick="sendControl('RESUME')">▶️ Resume</button>
+                <button id="btn-ctrl-stop" class="btn btn-danger" style="font-size: 0.75rem; padding: 6px 14px;" onclick="sendControl('EMERGENCY_STOP')">🚨 Emergency Stop</button>
             </div>
         </div>
         
@@ -2172,6 +2206,10 @@ async def serve_dashboard(_: bool = Depends(verify_dashboard_access)):
                 const res = await fetch('/api/stats');
                 const d = await res.json();
                 
+                const isPaused = Boolean(d.is_paused) || (d.status === 'PAUSED');
+                const isEm = (d.status === 'EMERGENCY_STOP') || (d.status === 'EMERGENCY_STOPPED') || Boolean(d.is_emergency_stopped);
+                updateHeaderStatus(d.app_mode || 'DRY_RUN', isPaused, d.status || 'RUNNING', isEm);
+
                 const livePubEl = document.getElementById('metric-live-published');
                 if (livePubEl) livePubEl.innerText = d.live_published_count !== undefined ? d.live_published_count : 0;
 
@@ -2442,11 +2480,12 @@ async def serve_dashboard(_: bool = Depends(verify_dashboard_access)):
         }}
 
         async function handleModeSwitchClick() {{
-            const modeBadge = document.getElementById('mode-badge');
-            const isCurrentlyProd = modeBadge && modeBadge.innerText.includes('PRODUCTION');
+            const statusText = document.getElementById('main-status-text');
+            const isCurrentlyProd = (window.currentAppMode === 'PRODUCTION') || 
+                                    (statusText && (statusText.innerText.includes('PRODUKSI') || statusText.innerText.includes('PRODUCTION')));
             
             if (isCurrentlyProd) {{
-                if (confirm('Kembali ke mode DRY_RUN (Simulasi Aman Lokal)?')) {{
+                if (confirm('Kembali ke mode SIMULASI (Dry Run Aman Lokal)?')) {{
                     await toggleModeTo('DRY_RUN');
                 }}
                 return;
@@ -2550,30 +2589,92 @@ async def serve_dashboard(_: bool = Depends(verify_dashboard_access)):
             return handleModeSwitchClick();
         }}
 
+        function updateHeaderStatus(appMode, isPaused, workerStatus, isEmergency) {{
+            const statusBadge = document.getElementById('main-status-badge');
+            const statusText = document.getElementById('main-status-text');
+            const statusDot = document.getElementById('status-dot');
+            const pauseBtn = document.getElementById('btn-ctrl-pause');
+            const resumeBtn = document.getElementById('btn-ctrl-resume');
+            const stopBtn = document.getElementById('btn-ctrl-stop');
+
+            let label = 'SIMULASI AKTIF';
+            let icon = '🟡';
+            let color = '#F59E0B';
+            let bg = 'rgba(245, 158, 11, 0.15)';
+            let border = 'rgba(245, 158, 11, 0.35)';
+
+            const isEm = Boolean(isEmergency) || workerStatus === 'EMERGENCY_STOP' || workerStatus === 'EMERGENCY_STOPPED';
+
+            if (isEm) {{
+                label = 'EMERGENCY STOP';
+                icon = '🔴';
+                color = '#EF4444';
+                bg = 'rgba(239, 68, 68, 0.15)';
+                border = 'rgba(239, 68, 68, 0.35)';
+                if (pauseBtn) pauseBtn.style.display = 'none';
+                if (resumeBtn) resumeBtn.style.display = 'none';
+                if (stopBtn) stopBtn.style.display = 'inline-flex';
+            }} else if (isPaused) {{
+                label = 'DIJEDA';
+                icon = '🟠';
+                color = '#F97316';
+                bg = 'rgba(249, 115, 22, 0.15)';
+                border = 'rgba(249, 115, 22, 0.35)';
+                if (pauseBtn) pauseBtn.style.display = 'none';
+                if (resumeBtn) resumeBtn.style.display = 'inline-flex';
+                if (stopBtn) stopBtn.style.display = 'inline-flex';
+            }} else if (workerStatus === 'STOPPED' || workerStatus === 'OFFLINE' || workerStatus === 'DISABLED' || workerStatus === 'DEAD') {{
+                label = 'OFFLINE';
+                icon = '⚫';
+                color = '#94A3B8';
+                bg = 'rgba(148, 163, 184, 0.15)';
+                border = 'rgba(148, 163, 184, 0.35)';
+                if (pauseBtn) pauseBtn.style.display = 'none';
+                if (resumeBtn) resumeBtn.style.display = 'inline-flex';
+                if (stopBtn) stopBtn.style.display = 'inline-flex';
+            }} else if (appMode === 'PRODUCTION') {{
+                label = 'PRODUKSI AKTIF';
+                icon = '🟢';
+                color = '#10B981';
+                bg = 'rgba(16, 185, 129, 0.15)';
+                border = 'rgba(16, 185, 129, 0.35)';
+                if (pauseBtn) pauseBtn.style.display = 'inline-flex';
+                if (resumeBtn) resumeBtn.style.display = 'none';
+                if (stopBtn) stopBtn.style.display = 'inline-flex';
+            }} else {{
+                label = 'SIMULASI AKTIF';
+                icon = '🟡';
+                color = '#F59E0B';
+                bg = 'rgba(245, 158, 11, 0.15)';
+                border = 'rgba(245, 158, 11, 0.35)';
+                if (pauseBtn) pauseBtn.style.display = 'inline-flex';
+                if (resumeBtn) resumeBtn.style.display = 'none';
+                if (stopBtn) stopBtn.style.display = 'inline-flex';
+            }}
+
+            if (statusText) statusText.innerText = icon + ' ' + label;
+            if (statusBadge) {{
+                statusBadge.style.color = color;
+                statusBadge.style.background = bg;
+                statusBadge.style.borderColor = border;
+            }}
+            if (statusDot) {{
+                statusDot.style.background = color;
+            }}
+            window.currentAppMode = appMode;
+        }}
+
         async function sendControl(action) {{
             try {{
                 const res = await fetch('/api/control/' + action, {{ method: 'POST' }});
                 const d = await res.json();
                 showToast((d.success ? '🟢 ' : '🔴 ') + (d.message || ('Action ' + action + ' sent.')));
                 
-                const pauseBtn = document.getElementById('btn-ctrl-pause');
-                const resumeBtn = document.getElementById('btn-ctrl-resume');
-                const statusText = document.getElementById('system-status-text');
-                const statusPill = document.getElementById('system-status-pill');
-
-                if (action === 'PAUSE') {{
-                    if (pauseBtn) pauseBtn.disabled = true;
-                    if (resumeBtn) resumeBtn.disabled = false;
-                    if (statusText) statusText.innerText = 'PAUSED';
-                }} else if (action === 'RESUME') {{
-                    if (pauseBtn) pauseBtn.disabled = false;
-                    if (resumeBtn) resumeBtn.disabled = true;
-                    if (statusText) statusText.innerText = 'RUNNING';
-                }} else if (action === 'EMERGENCY_STOP') {{
-                    if (pauseBtn) pauseBtn.disabled = true;
-                    if (resumeBtn) resumeBtn.disabled = true;
-                    if (statusText) statusText.innerText = 'EMERGENCY_STOP';
-                }}
+                const isPaused = action === 'PAUSE';
+                const isEmergency = action === 'EMERGENCY_STOP';
+                const workerStatus = action === 'RESUME' ? 'RUNNING' : (action === 'PAUSE' ? 'PAUSED' : (action === 'EMERGENCY_STOP' ? 'EMERGENCY_STOPPED' : 'RUNNING'));
+                updateHeaderStatus(window.currentAppMode || 'DRY_RUN', isPaused, workerStatus, isEmergency);
+                setTimeout(() => pollStats(), 800);
             }} catch (e) {{
                 showToast('🔴 Eror: ' + e.message);
             }}
