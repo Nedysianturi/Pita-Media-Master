@@ -4,6 +4,7 @@ Menghasilkan 3-5 gambar statis beresolusi tinggi (1:1) untuk pilar Pita Cerita.
 """
 
 import os
+import asyncio
 import logging
 from pathlib import Path
 from typing import List, Optional

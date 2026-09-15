@@ -1,5 +1,25 @@
 [
   {
+    "version_id": "app_mode_1789457750_29d4aa7a288f",
+    "config_name": "app_mode",
+    "timestamp": 1789457750,
+    "iso_time": "2026-09-15T07:35:50Z",
+    "changed_by": "DASHBOARD",
+    "reason": "User toggled APP_MODE to PRODUCTION",
+    "hash": "29d4aa7a288f",
+    "file_path": "C:\\Users\\Cipad\\.gemini\\antigravity-ide\\scratch\\pita-media\\storage\\config_history\\app_mode_1789457750_29d4aa7a288f.json"
+  },
+  {
+    "version_id": "app_mode_1789457265_29d4aa7a288f",
+    "config_name": "app_mode",
+    "timestamp": 1789457265,
+    "iso_time": "2026-09-15T07:27:45Z",
+    "changed_by": "DASHBOARD",
+    "reason": "User toggled APP_MODE to PRODUCTION",
+    "hash": "29d4aa7a288f",
+    "file_path": "C:\\Users\\Cipad\\.gemini\\antigravity-ide\\scratch\\pita-media\\storage\\config_history\\app_mode_1789457265_29d4aa7a288f.json"
+  },
+  {
     "version_id": "app_mode_1789446422_29d4aa7a288f",
     "config_name": "app_mode",
     "timestamp": 1789446422,

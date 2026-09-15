@@ -1319,10 +1319,32 @@ async def serve_dashboard(_: bool = Depends(verify_dashboard_access)):
                     <div class="card-title">Pemicu Kreasi Konten Mandiri (4 Pilar Resmi AI Multi-Agent Studio)</div>
                     <p style="font-size: 0.8rem; color: var(--text-muted); margin-top: 4px;">Pilih salah satu dari 4 pilar resmi di bawah untuk menugaskan tim AI merancang naskah, slide grafis, dan Quality Control.</p>
                     <div style="display: flex; flex-wrap: wrap; gap: 12px; margin-top: 14px;">
-                        <button class="btn btn-primary" style="background:linear-gradient(135deg,#EC4899,#DB2777);" onclick="triggerStudio('pita_transformasi')">✨ Generate Pita Transformasi (Reels/Shorts)</button>
-                        <button class="btn btn-primary" style="background:linear-gradient(135deg,#6366F1,#4F46E5);" onclick="triggerStudio('pita_cerita')">📖 Generate Pita Cerita (Karusel Edukasi)</button>
-                        <button class="btn btn-primary" style="background:linear-gradient(135deg,#3B82F6,#2563EB);" onclick="triggerStudio('pita_kreasi')">🎨 Generate Pita Kreasi (Visual Estetika)</button>
-                        <button class="btn btn-primary" style="background:linear-gradient(135deg,#F59E0B,#D97706);" onclick="triggerStudio('pita_mini')">⏳ Generate Pita Mini (Refleksi Singkat)</button>
+                        <button class="btn btn-primary" id="btn-gen-transformasi" style="background:linear-gradient(135deg,#EC4899,#DB2777);" onclick="triggerStudio('pita_transformasi')">✨ Generate Pita Transformasi (Reels/Shorts)</button>
+                        <button class="btn btn-primary" id="btn-gen-cerita" style="background:linear-gradient(135deg,#6366F1,#4F46E5);" onclick="triggerStudio('pita_cerita')">📖 Generate Pita Cerita (Karusel Edukasi)</button>
+                        <button class="btn btn-primary" id="btn-gen-kreasi" style="background:linear-gradient(135deg,#3B82F6,#2563EB);" onclick="triggerStudio('pita_kreasi')">🎨 Generate Pita Kreasi (Visual Estetika)</button>
+                        <button class="btn btn-primary" id="btn-gen-mini" style="background:linear-gradient(135deg,#F59E0B,#D97706);" onclick="triggerStudio('pita_mini')">⏳ Generate Pita Mini (Refleksi Singkat)</button>
+                    </div>
+
+                    <!-- Live Generation Progress Card -->
+                    <div id="studio-progress-card" style="display:none; margin-top: 18px; padding: 16px 20px; background: rgba(15, 23, 42, 0.85); border: 1px solid rgba(99, 102, 241, 0.4); border-radius: 12px; box-shadow: 0 8px 24px rgba(0,0,0,0.4);">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; flex-wrap: wrap; gap: 8px;">
+                            <div style="display: flex; align-items: center; gap: 10px;">
+                                <span class="pulse-dot" style="background: #6366F1; width: 10px; height: 10px;"></span>
+                                <span id="studio-progress-title" style="font-weight: 700; font-size: 0.92rem; color: var(--text-main);">Merakit Konten AI...</span>
+                                <span id="studio-progress-pilar" class="pilar-pill">#pilar</span>
+                            </div>
+                            <span id="studio-progress-pct" style="font-weight: 800; font-size: 0.95rem; color: #818CF8;">0%</span>
+                        </div>
+                        
+                        <!-- Animated Progress Bar -->
+                        <div style="width: 100%; height: 8px; background: rgba(0,0,0,0.5); border-radius: 999px; overflow: hidden; margin-bottom: 10px;">
+                            <div id="studio-progress-bar" style="width: 0%; height: 100%; background: linear-gradient(90deg, #6366F1, #EC4899, #3B82F6); border-radius: 999px; transition: width 0.4s ease; box-shadow: 0 0 12px rgba(99,102,241,0.6);"></div>
+                        </div>
+
+                        <div style="display: flex; justify-content: space-between; align-items: center; font-size: 0.78rem; color: var(--text-muted); flex-wrap: wrap; gap: 6px;">
+                            <span id="studio-progress-step" style="color: var(--text-main); font-weight: 600;">🤖 Tahap 1/4: Merancang Ide & Naskah Naratif...</span>
+                            <span id="studio-progress-jobid" style="font-family: monospace; color: var(--accent-cyan);">Job ID: -</span>
+                        </div>
                     </div>
                 </div>
 
@@ -1342,7 +1364,7 @@ async def serve_dashboard(_: bool = Depends(verify_dashboard_access)):
                             <span>⏳ Antrean Pemrosesan (Job Queue SQLite WAL)</span>
                             <button class="btn btn-outline" style="font-size:0.72rem; padding:3px 8px;" onclick="fetchQueue()">🔄</button>
                         </div>
-                        <table><thead><tr><th>Job ID</th><th>Pilar</th><th>Status</th><th>Dibuat</th></tr></thead><tbody id="queue-tbody"></tbody></table>
+                        <table><thead><tr><th>Job ID</th><th>Pilar Konten</th><th>Status</th><th>Tipe</th><th>Dibuat</th></tr></thead><tbody id="queue-tbody"></tbody></table>
                     </div>
 
                     <div class="card">
@@ -3447,30 +3469,87 @@ async def serve_dashboard(_: bool = Depends(verify_dashboard_access)):
             fetchLearningData();
         }}
 
-        async function toggleLearningPause() {{
-            const curBadge = document.getElementById('learn-pause-badge').innerText;
-            const isPausedNow = curBadge.includes('PAUSED');
-            const res = await fetch('/api/learning/pause', {{
-                method: 'POST',
-                headers: {{ 'Content-Type': 'application/json' }},
-                body: JSON.stringify({{ pause: !isPausedNow }})
-            }});
-            const d = await res.json();
-            showToast(d.is_paused ? 'Learning Engine DIJEDA.' : 'Learning Engine DIAKTIFKAN.');
-            fetchLearningData();
-        }}
-
-        async function approveRecommendation() {{
-            const recBox = document.getElementById('learn-rec-box');
-            const target = recBox.dataset.targetLevel;
-            if (target) {{
-                await setAutonomyLevel(target);
-                recBox.style.display = 'none';
-            }}
-        }}
+        let studioPollTimer = null;
 
         async function triggerStudio(pilar) {{
-            showToast('🚀 Menginstruksikan AI Creator untuk membuat konten #' + pilar + '...');
+            const pilarDisplayMap = {{
+                'pita_transformasi': 'Pita Transformasi (Reels/Shorts)',
+                'pita_cerita': 'Pita Cerita (Karusel Edukasi)',
+                'pita_kreasi': 'Pita Kreasi (Visual Estetika)',
+                'pita_mini': 'Pita Mini (Refleksi Singkat)'
+            }};
+            const pilarTitle = pilarDisplayMap[pilar] || pilar;
+
+            // 1. Show & Initialize Progress Card
+            const progressCard = document.getElementById('studio-progress-card');
+            const progressTitle = document.getElementById('studio-progress-title');
+            const progressPilar = document.getElementById('studio-progress-pilar');
+            const progressPct = document.getElementById('studio-progress-pct');
+            const progressBar = document.getElementById('studio-progress-bar');
+            const progressStep = document.getElementById('studio-progress-step');
+            const progressJobId = document.getElementById('studio-progress-jobid');
+
+            if (progressCard) {{
+                progressCard.style.display = 'block';
+                progressCard.scrollIntoView({{ behavior: 'smooth', block: 'nearest' }});
+            }}
+            if (progressTitle) progressTitle.innerText = `Memproses Kreasi ${{pilarTitle}}...`;
+            if (progressPilar) progressPilar.innerText = `#${{pilar}}`;
+            if (progressPct) progressPct.innerText = '15%';
+            if (progressBar) {{
+                progressBar.style.width = '15%';
+                progressBar.style.background = 'linear-gradient(90deg, #6366F1, #EC4899, #3B82F6)';
+            }}
+            if (progressStep) progressStep.innerHTML = '🤖 <b>Tahap 1/4:</b> Inisialisasi Job & Antrean SQLite WAL...';
+            if (progressJobId) progressJobId.innerText = 'Job ID: Mengalokasikan...';
+
+            // 2. Optimistically insert temporary row into #queue-tbody
+            const qTbody = document.getElementById('queue-tbody');
+            if (qTbody) {{
+                const tempRow = `
+                <tr id="temp-job-row" style="background: rgba(99, 102, 241, 0.08);">
+                    <td><code>PROCSSNG</code></td>
+                    <td><span class="pilar-pill">✨ #${{pilar}}</span></td>
+                    <td><span class="brand-badge" style="background:rgba(96,165,250,0.2); color:#60A5FA; font-weight:700;"><span class="pulse-dot" style="background:#60A5FA; width:6px; height:6px;"></span> PROCESSING</span></td>
+                    <td>Standard</td>
+                    <td style="font-size:0.75rem; color:var(--text-muted);">Baru Saja</td>
+                </tr>
+                `;
+                if (qTbody.innerHTML.includes('Antrean kosong')) {{
+                    qTbody.innerHTML = tempRow;
+                }} else {{
+                    qTbody.insertAdjacentHTML('afterbegin', tempRow);
+                }}
+            }}
+
+            showToast(`🚀 Memulai pembuatan konten #${{pilar}}...`);
+
+            // Disable buttons temporarily
+            const genBtns = ['btn-gen-transformasi', 'btn-gen-cerita', 'btn-gen-kreasi', 'btn-gen-mini'];
+            genBtns.forEach(id => {{
+                const b = document.getElementById(id);
+                if (b) {{ b.disabled = true; b.style.opacity = '0.6'; }}
+            }});
+
+            // Simulated step transition timer for instant UX feedback
+            let progress = 15;
+            const stageTimer = setInterval(() => {{
+                if (progress < 85) {{
+                    progress += 10;
+                    if (progressPct) progressPct.innerText = progress + '%';
+                    if (progressBar) progressBar.style.width = progress + '%';
+                    if (progressStep) {{
+                        if (progress >= 30 && progress < 55) {{
+                            progressStep.innerHTML = '🧠 <b>Tahap 2/4:</b> AI Multi-Model Brainstorming & Naskah Narasi...';
+                        }} else if (progress >= 55 && progress < 75) {{
+                            progressStep.innerHTML = '🎨 <b>Tahap 3/4:</b> Rendering Visual Grafis & Komposisi Slide...';
+                        }} else if (progress >= 75) {{
+                            progressStep.innerHTML = '🔍 <b>Tahap 4/4:</b> Quality Control & Validasi Kualitas Konten...';
+                        }}
+                    }}
+                }}
+            }}, 1200);
+
             try {{
                 const res = await fetch('/api/studio/trigger', {{
                     method: 'POST',
@@ -3478,12 +3557,39 @@ async def serve_dashboard(_: bool = Depends(verify_dashboard_access)):
                     body: JSON.stringify({{ pilar: pilar }})
                 }});
                 const d = await res.json();
+                
                 if (d.success) {{
                     showToast('✅ ' + d.message);
+                    if (progressJobId) progressJobId.innerText = 'Job ID: ' + (d.job_id ? d.job_id.slice(0, 8) : '-');
+                    
                     fetchQueue();
                     fetchContent();
                     pollStats();
+
+                    // Poll every 2 seconds until completed
+                    if (studioPollTimer) clearInterval(studioPollTimer);
+                    let pollCount = 0;
+                    studioPollTimer = setInterval(async () => {{
+                        pollCount++;
+                        await fetchQueue();
+                        await fetchContent();
+                        await pollStats();
+
+                        if (pollCount > 15) {{
+                            clearInterval(studioPollTimer);
+                        }}
+                    }}, 2000);
+
+                    // Set to 100% completed
                     setTimeout(() => {{
+                        clearInterval(stageTimer);
+                        if (progressPct) progressPct.innerText = '100%';
+                        if (progressBar) {{
+                            progressBar.style.width = '100%';
+                            progressBar.style.background = 'linear-gradient(90deg, #10B981, #059669)';
+                        }}
+                        if (progressStep) progressStep.innerHTML = '🟢 <b>Selesai!</b> Konten berhasil dirakit dan tersimpan di Galeri.';
+                        showToast(`🎉 Konten #${{pilar}} selesai dibuat! Silakan cek Galeri Aset.`);
                         fetchContent();
                         fetchQueue();
                         fetchReceipts();
@@ -3499,6 +3605,8 @@ async def serve_dashboard(_: bool = Depends(verify_dashboard_access)):
 
         pollStats();
         fetchVaultStatus();
+        fetchQueue();
+        fetchContent();
         setInterval(pollStats, 5000);
     </script>
 </body>
