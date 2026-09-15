@@ -13,6 +13,10 @@ from typing import Dict, Any, List, Optional
 logger = logging.getLogger("pita_media.runtime.storage_guard")
 
 
+PROTECTED_EXTENSIONS = {".vault", ".pmvault", ".db", ".sqlite", ".wal", ".shm"}
+PROTECTED_FILENAMES = {"credentials.vault", "pita_media.db", "config_history.json", "state.db", "brand_bible.yaml"}
+
+
 class StorageGuard:
     """
     Guards workspace storage against disk-full crashes.
@@ -71,12 +75,18 @@ class StorageGuard:
                 for item in t_dir.glob("*"):
                     try:
                         if item.is_file():
+                            if item.suffix.lower() in PROTECTED_EXTENSIONS or item.name in PROTECTED_FILENAMES:
+                                logger.warning(f"StorageGuard skipped protected file: {item.name}")
+                                continue
                             freed_bytes += item.stat().st_size
                             item.unlink()
                             deleted_count += 1
                         elif item.is_dir():
-                            shutil.rmtree(item)
-                            deleted_count += 1
+                            # Check if directory contains protected items
+                            has_protected = any(sub.suffix.lower() in PROTECTED_EXTENSIONS for sub in item.rglob("*"))
+                            if not has_protected:
+                                shutil.rmtree(item)
+                                deleted_count += 1
                     except Exception as e:
                         logger.warning(f"Failed to clean temp item {item}: {e}")
 

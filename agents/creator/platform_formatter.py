@@ -77,7 +77,7 @@ class PlatformFormatter:
                 "platform": "facebook",
                 "aspect_ratio": "4:5",
                 "caption": "\n".join(caption_parts),
-                "media_type": "CAROUSEL" if pilar in ["pita_cerita", "pita_waktu"] else "IMAGE"
+                "media_type": "CAROUSEL" if pilar in ["pita_cerita", "pita_kreasi"] else "IMAGE"
             }
 
         elif platform == "instagram":
@@ -95,7 +95,7 @@ class PlatformFormatter:
                 "platform": "instagram",
                 "aspect_ratio": "4:5",
                 "caption": "\n\n".join(caption_parts),
-                "media_type": "CAROUSEL" if pilar in ["pita_cerita", "pita_waktu"] else "IMAGE"
+                "media_type": "CAROUSEL" if pilar in ["pita_cerita", "pita_kreasi"] else "IMAGE"
             }
 
         elif platform == "threads":

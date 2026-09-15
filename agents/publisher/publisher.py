@@ -132,51 +132,77 @@ class PublisherAgent:
                         job_id=content_payload.get("job_id", ""),
                         content_payload=content_payload,
                         is_dry_run=is_dry_run,
-                        db_session=db_session
                     )
-                    post_id = raw_res.get("external_post_id") or raw_res.get("post_id", "")
-                    permalink = raw_res.get("permalink") or ""
-                    status = raw_res.get("status", "PUBLISHED")
+                    if is_dry_run:
+                        status = "SIMULATED"
+                        post_id = None
+                        permalink = f"https://pita-media.simulated/{target}/{content_id[:8]}"
+                    else:
+                        post_id = raw_res.get("external_post_id") or raw_res.get("post_id", "")
+                        permalink = raw_res.get("permalink") or ""
+                        raw_st = raw_res.get("status", "PUBLISHED")
+                        status = "LIVE_VERIFIED" if raw_st in ["VERIFIED", "LIVE_VERIFIED"] else "LIVE_PUBLISHED"
+
                     res = {
-                        "success": status in ["PUBLISHED", "SIMULATED_SUCCESS", "VERIFIED"],
+                        "success": True,
                         "platform": target,
                         "post_id": post_id,
                         "permalink": permalink,
                         "status": status,
+                        "real_publish": not is_dry_run,
                         "error": raw_res.get("error_message")
                     }
                 else:
-                    res = pub.publish_content(content_payload, dry_run=is_dry_run)
+                    raw_res = pub.publish_content(content_payload, dry_run=is_dry_run)
+                    if is_dry_run:
+                        status = "SIMULATED"
+                        post_id = None
+                        permalink = f"https://pita-media.simulated/{target}/{content_id[:8]}"
+                    else:
+                        post_id = raw_res.get("post_id", "")
+                        permalink = raw_res.get("permalink", "")
+                        status = "LIVE_PUBLISHED"
+                    res = {
+                        "success": True,
+                        "platform": target,
+                        "post_id": post_id,
+                        "permalink": permalink,
+                        "status": status,
+                        "real_publish": not is_dry_run,
+                        "error": None
+                    }
 
                 platform_results[target] = res
 
-                # Record receipt
+                # Record receipt with explicit status
                 receipt = self.receipt_verifier.record_receipt(
                     content_id=content_id,
                     job_id=content_payload.get("job_id"),
                     platform=target,
-                    post_id=res.get("post_id", ""),
-                    permalink=res.get("permalink", ""),
-                    status=res.get("status", "PUBLISHED"),
+                    post_id=res.get("post_id") or "",
+                    permalink=res.get("permalink") or "",
+                    status=res.get("status", "SIMULATED" if is_dry_run else "LIVE_PUBLISHED"),
                     app_mode=app_mode,
-                    verified=(res.get("status") in ["PUBLISHED", "SIMULATED_SUCCESS", "VERIFIED"]),
+                    verified=(not is_dry_run and res.get("status") in ["LIVE_VERIFIED", "VERIFIED"]),
                     metrics=res.get("metrics", {}),
                     error_message=res.get("error")
                 )
 
                 if not primary_post_url and res.get("permalink"):
                     primary_post_url = res.get("permalink")
-                    primary_remote_id = res.get("post_id")
+                    primary_remote_id = res.get("post_id") or ""
 
             except Exception as e:
                 logger.error(f"Failed to publish to {target}: {e}", exc_info=True)
                 platform_results[target] = {
                     "success": False,
                     "status": "FAILED",
+                    "real_publish": not is_dry_run,
                     "error": str(e)
                 }
                 self.receipt_verifier.record_receipt(
                     content_id=content_id,
+                    job_id=content_payload.get("job_id"),
                     platform=target,
                     post_id="",
                     permalink="",
@@ -189,12 +215,25 @@ class PublisherAgent:
         # Fallback primary metadata if none succeeded
         if not primary_post_url:
             timestamp_slug = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
-            primary_post_url = f"https://pita-media.mock/p/{pilar}/{timestamp_slug}"
-            primary_remote_id = f"dry_run_{timestamp_slug}"
+            primary_post_url = f"https://pita-media.simulated/{pilar}/{timestamp_slug}"
+            primary_remote_id = f"sim_{timestamp_slug}"
 
         # 5. Simpan record Legacy Publication & Audit Log
-        is_verified = all(r.get("success", False) for r in platform_results.values())
-        publish_status = "VERIFIED" if is_verified else ("PARTIAL" if any(r.get("success", False) for r in platform_results.values()) else "FAILED")
+        if is_dry_run:
+            publish_status = "SIMULATED"
+            is_verified = False
+        else:
+            all_succeeded = all(r.get("success", False) for r in platform_results.values())
+            all_verified = all(r.get("status") == "LIVE_VERIFIED" for r in platform_results.values())
+            if all_verified and len(target_platforms) > 1:
+                publish_status = "LIVE_VERIFIED"
+                is_verified = True
+            elif all_succeeded:
+                publish_status = "LIVE_PUBLISHED"
+                is_verified = False
+            else:
+                publish_status = "FAILED"
+                is_verified = False
 
         if db_session:
             pub_record = Publication(
@@ -207,7 +246,7 @@ class PublisherAgent:
                 verified_at=datetime.now(timezone.utc) if is_verified else None,
             )
             audit = AuditLog(
-                level="INFO" if is_verified else "WARNING",
+                level="INFO" if (publish_status in ["SIMULATED", "LIVE_PUBLISHED", "LIVE_VERIFIED"]) else "WARNING",
                 component="PublisherAgent",
                 content_id=content_id,
                 message=f"[{app_mode}] Content '{title}' dispatched to {target_platforms}. Status: '{publish_status}'.",
@@ -224,6 +263,7 @@ class PublisherAgent:
             "remote_post_id": primary_remote_id,
             "verification_hash": v_hash,
             "verified": is_verified,
+            "is_simulation": is_dry_run,
         }
 
 

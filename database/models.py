@@ -32,6 +32,30 @@ def utc_now() -> datetime:
     return datetime.now(timezone.utc)
 
 
+CANONICAL_PILLARS = ["PITA_TRANSFORMASI", "PITA_MINI", "PITA_CERITA", "PITA_KREASI"]
+LEGACY_PILLAR_MAP = {
+    "PITA_WAKTU": "PITA_CERITA",
+    "PITA_REFLEKSI": "PITA_TRANSFORMASI",
+    "pita_waktu": "pita_cerita",
+    "pita_refleksi": "pita_transformasi",
+}
+
+
+def normalize_pillar_name(pilar: str) -> str:
+    """Normalizes pillar name to official 4 pillars with backward compatibility for legacy records."""
+    if not pilar:
+        return "PITA_TRANSFORMASI"
+    pilar_upper = str(pilar).upper().strip().replace(" ", "_").replace("-", "_")
+    if pilar_upper in LEGACY_PILLAR_MAP:
+        return LEGACY_PILLAR_MAP[pilar_upper]
+    if pilar_upper in CANONICAL_PILLARS:
+        return pilar_upper
+    pilar_lower = pilar_upper.lower()
+    if pilar_lower in LEGACY_PILLAR_MAP:
+        return LEGACY_PILLAR_MAP[pilar_lower].upper()
+    return pilar_upper
+
+
 class Job(Base):
     __tablename__ = "jobs"
 

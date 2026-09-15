@@ -1,5 +1,15 @@
 [
   {
+    "version_id": "app_mode_1789446422_29d4aa7a288f",
+    "config_name": "app_mode",
+    "timestamp": 1789446422,
+    "iso_time": "2026-09-15T04:27:02Z",
+    "changed_by": "DASHBOARD",
+    "reason": "User toggled APP_MODE",
+    "hash": "29d4aa7a288f",
+    "file_path": "C:\\Users\\Cipad\\.gemini\\antigravity-ide\\scratch\\pita-media\\storage\\config_history\\app_mode_1789446422_29d4aa7a288f.json"
+  },
+  {
     "version_id": "brand_bible_1789446025_7b4f50697156",
     "config_name": "brand_bible",
     "timestamp": 1789446025,

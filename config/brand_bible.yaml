@@ -13,39 +13,32 @@ brand_profile:
   signature_rubric: "Pita Waktu"
   established: 2026
 
-visual_identity:
-  logo:
-    path: "assets/logo.png"
-    aspect_ratio: "1:1"
-    usage: "Bottom-right corner (10% padding), opacity 92%"
-  color_palette:
-    primary: "#0F172A"       # Deep Slate Blue / Midnight
-    secondary: "#3B82F6"     # Electric Indigo / Cobalt
-    accent: "#F59E0B"        # Warm Amber / Sun Gold
-    surface: "#1E293B"       # Dark Card Slate
-    text_primary: "#F8FAFC"  # Pure Crisp White
-    text_muted: "#94A3B8"    # Soft Slate Grey
-  typography:
-    heading_font: "Inter, 'Montserrat', sans-serif (Bold / Extra Bold)"
-    body_font: "Inter, 'Plus Jakarta Sans', sans-serif (Regular / Medium)"
-    quote_font: "'Playfair Display', serif (Italic)"
+official_pillars:
+  - id: "PITA_TRANSFORMASI"
+    name: "Pita Transformasi"
+    description: "Timelapse transformasi bertahap (awal -> proses -> detail -> reveal)"
+    format: "Vertical Video (9:16)"
+  - id: "PITA_MINI"
+    name: "Pita Mini"
+    description: "Konstruksi miniatur realistis & memuaskan"
+    format: "Vertical Video (9:16)"
+  - id: "PITA_CERITA"
+    name: "Pita Cerita"
+    description: "Multi-slide visual story carousel (3-5 gambar) + 150-300 kata narasi bermakna"
+    format: "Image Carousel (4:5 / 1:1)"
+  - id: "PITA_KREASI"
+    name: "Pita Kreasi"
+    description: "Karya kreatif dari bahan sederhana menjadi sesuatu yang menarik & tak terduga"
+    format: "Vertical Video (9:16) / Carousel"
+
+brand_signature:
+  name: "Pita Waktu (Ribbon of Time)"
+  role: "Brand Identity Signature & Voice Wrapper (Bukan pilar konten mandiri)"
+  opening_template: "Tahukah kamu, di balik detik yang kita lewati hari ini, ada jejak..."
+  closing_template: "Pita waktu terus berputar. Dari kisah ini, makna apa yang kamu bawa?"
+  visual_signature: "Sinematik, grading warna warm-vintage atau dark-modern, watermark Pita Media halus."
 
 signature_rubrics:
-  pita_waktu:
-    name: "Pita Waktu (Ribbon of Time)"
-    format: "Narrative History / Emotional Journey / Transformation"
-    hook_style: "Pertanyaan reflektif atau kontras sejarah yang memicu rasa ingin tahu seketika"
-    opening_template: "Tahukah kamu, di balik detik yang kita lewati hari ini, ada jejak..."
-    closing_template: "Pita waktu terus berputar. Dari kisah ini, makna apa yang kamu bawa?"
-    visual_signature: "Sinematik, grading warna warm-vintage atau dark-modern, watermark Pita Media halus."
-
-  pita_cerita:
-    name: "Pita Cerita (Storytelling Carousel)"
-    format: "Multi-slide visual story (4 hingga 8 slide)"
-    aspect_ratio: "4:5 (1080x1350) or 1:1"
-    hook_style: "Bold visual headline pada slide pertama"
-    cta_style: "Simpan & bagikan jika kisah ini menyentuhmu."
-
   pita_transformasi:
     name: "Pita Transformasi (Before & After / Progress)"
     format: "Vertical Video (Reels 9:16)"
@@ -56,6 +49,19 @@ signature_rubrics:
     name: "Pita Mini (Shorts & Micro-Facts)"
     format: "Fast-paced vertical reel (< 45s)"
     hook_style: "Fakta mengejutkan atau visual loop"
+
+  pita_cerita:
+    name: "Pita Cerita (Storytelling Carousel)"
+    format: "Multi-slide visual story (3 hingga 5 slide)"
+    aspect_ratio: "4:5 (1080x1350) or 1:1"
+    hook_style: "Bold visual headline pada slide pertama"
+    cta_style: "Simpan & bagikan jika kisah ini menyentuhmu."
+
+  pita_kreasi:
+    name: "Pita Kreasi (Craft & Innovation)"
+    format: "Vertical Video (9:16) or Carousel"
+    hook_style: "Bahan mentah sederhana diubah menjadi karya artistik"
+    cta_style: "Bagikan pendapatmu tentang kreasi ini!"
 
 tones_and_emotions:
   supported_tones:

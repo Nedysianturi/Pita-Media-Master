@@ -113,7 +113,7 @@ class MusicManager:
         """
         mood = tone.lower()
         if mood not in self.SUPPORTED_MOODS:
-            mood = "inspiratif" if pilar in ["pita_waktu", "pita_transformasi"] else "wholesome"
+            mood = "inspiratif" if pilar in ["pita_transformasi", "pita_cerita", "pita_kreasi"] else "wholesome"
 
         matched = [t for t in self.tracks if t.mood == mood]
         if matched:
