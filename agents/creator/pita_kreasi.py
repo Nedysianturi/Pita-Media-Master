@@ -79,6 +79,7 @@ class PitaKreasiCreator:
             job_id=job_id,
             pilar="pita_kreasi",
             title=idea.title,
+            concept=idea.concept,
             mood="inspiratif",
         )
 

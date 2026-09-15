@@ -78,6 +78,7 @@ class PitaMiniCreator:
             job_id=job_id,
             pilar="pita_mini",
             title=idea.title,
+            concept=idea.concept,
             mood="satisfying",
         )
 

@@ -50,6 +50,7 @@ class VeoClient:
         job_id: Optional[str] = None,
         pilar: str = "pita_transformasi",
         title: str = "Pita Media Visual",
+        concept: str = "",
         mood: str = "inspiratif",
     ) -> str:
         """
@@ -60,7 +61,7 @@ class VeoClient:
 
         app_mode = os.environ.get("APP_MODE", getattr(settings, "APP_MODE", "DRY_RUN")).upper()
         if not self.is_configured() or not self.client or app_mode != "PRODUCTION" or os.environ.get("PYTEST_CURRENT_TEST"):
-            return await self._create_mock_video(str(dest_file), prompt, duration_seconds, pilar=pilar, title=title, mood=mood)
+            return await self._create_mock_video(str(dest_file), prompt, duration_seconds, pilar=pilar, title=title, concept=concept, mood=mood)
 
         try:
             # Panggilan Veo 2.0 API tanpa parameter unsupported di Developer Mode
@@ -85,10 +86,10 @@ class VeoClient:
 
             if operation.error:
                 logger.warning(f"Veo API mengembalikan error: {operation.error.message}. Menggunakan fallback video generator.")
-                return await self._create_mock_video(str(dest_file), prompt, duration_seconds, pilar=pilar, title=title, mood=mood)
+                return await self._create_mock_video(str(dest_file), prompt, duration_seconds, pilar=pilar, title=title, concept=concept, mood=mood)
 
             if not hasattr(operation, "result") or not operation.result or not operation.result.generated_videos:
-                return await self._create_mock_video(str(dest_file), prompt, duration_seconds, pilar=pilar, title=title, mood=mood)
+                return await self._create_mock_video(str(dest_file), prompt, duration_seconds, pilar=pilar, title=title, concept=concept, mood=mood)
 
             # Unduh video hasil render
             generated_video = operation.result.generated_videos[0]
@@ -110,7 +111,7 @@ class VeoClient:
 
         except Exception as e:
             logger.info(f"Veo API tidak aktif/kuota terbatas ({e}). Beralih ke fallback video generator.")
-            return await self._create_mock_video(str(dest_file), prompt, duration_seconds, pilar=pilar, title=title, mood=mood)
+            return await self._create_mock_video(str(dest_file), prompt, duration_seconds, pilar=pilar, title=title, concept=concept, mood=mood)
 
     async def _create_mock_video(
         self,
@@ -119,63 +120,189 @@ class VeoClient:
         duration: int = 5,
         pilar: str = "pita_transformasi",
         title: str = "Pita Media Visual",
+        concept: str = "",
         mood: str = "inspiratif",
     ) -> str:
-        """Helper untuk membuat video animasi 9:16 estetis lengkap dengan visual grafis dinamis dan audio stereo AAC."""
+        """
+        Menghasilkan video animasi vertikal 9:16 (720x1280) dengan 4 Keyframe Scene Visual
+        yang menceritakan proses ide & konsep secara kronologis, dilengkapi audio stereo AAC 192k.
+        """
         import subprocess
+        from PIL import Image, ImageDraw, ImageFont
         from providers.media_finisher import media_finisher
         from core.audio.music_manager import music_manager
 
-        # Tentukan tema visual & label pilar
         p_clean = (pilar or "pita_transformasi").lower()
         if "transformasi" in p_clean:
-            pill_label = "PITA TRANSFORMASI (Reels / Shorts)"
-            badge_color = "0xEC4899"
-            sub_label = "Timelapse Transformasi Bertahap"
+            pill_label = "PITA TRANSFORMASI"
+            pilar_desc = "Timelapse & Restorasi Bertahap"
+            theme_color = (236, 72, 153)  # Pink Neon
         elif "mini" in p_clean:
-            pill_label = "PITA MINI (Diorama & Craft)"
-            badge_color = "0xF59E0B"
-            sub_label = "Kreasi Miniatur Makro Presisi"
+            pill_label = "PITA MINI"
+            pilar_desc = "Kreasi Miniatur & Diorama Presisi"
+            theme_color = (245, 158, 11)   # Warm Amber
         elif "kreasi" in p_clean:
-            pill_label = "PITA KREASI (Eksplorasi Seni)"
-            badge_color = "0x10B981"
-            sub_label = "Konsep Artistik Benda Sederhana"
+            pill_label = "PITA KREASI"
+            pilar_desc = "Eksplorasi Konsep Seni Kreatif"
+            theme_color = (16, 185, 129)  # Emerald
         else:
-            pill_label = "PITA MEDIA (Video Sinematik)"
-            badge_color = "0x3B82F6"
-            sub_label = "Refleksi & Narasi Bermakna"
+            pill_label = "PITA MEDIA"
+            pilar_desc = "Refleksi Sinematik & Waktu"
+            theme_color = (99, 102, 241)  # Indigo
 
-        # Bersihkan teks judul untuk aman dalam FFmpeg drawtext
-        safe_title = (title or "Karya Visual Eksklusif").replace("'", "").replace(":", "-").replace('"', "")
-        if len(safe_title) > 38:
-            safe_title = safe_title[:35] + "..."
+        # Bersihkan & siapkan narasi per fase cerita
+        clean_concept = concept or title or "Eksplorasi estetika dan proses pengerjaan karya"
+        clean_title = (title or "Karya Visual Eksklusif").strip()
+
+        # Ekstrak atau formulasikan 4 fase cerita yang relevan dengan konsep
+        scene_definitions = [
+            (
+                "FASE 1: KONDISI AWAL (INITIAL STATE)",
+                f"Kondisi awal bahan mentah: {clean_concept.split('.')[0]}.",
+                theme_color
+            ),
+            (
+                "FASE 2: PROSES PENATAAN (CRAFT PROCESS)",
+                f"Pengerjaan bertahap dengan ketelitian dan presisi tinggi pada setiap elemen.",
+                (96, 165, 250)  # Sky Blue
+            ),
+            (
+                "FASE 3: DETAIL MAKRO (MACRO FOCUS)",
+                f"Fokus close-up pada tekstur detail, kontur material, dan kedalaman bayangan.",
+                (52, 211, 153)  # Green Emerald
+            ),
+            (
+                "FASE 4: HASIL REVEAL (FINAL MASTERPIECE)",
+                f"Karya akhir terwujud memukau dengan komposisi dan pencahayaan sinematik sempurna.",
+                (251, 191, 36)  # Golden Yellow
+            )
+        ]
+
+        temp_dir = Path(output_path).parent / f"temp_scenes_{Path(output_path).stem}"
+        temp_dir.mkdir(parents=True, exist_ok=True)
+        img_paths = []
+
+        def get_font(size: int, bold: bool = False):
+            font_names = ["segoeuib.ttf" if bold else "segoeui.ttf", "arialbd.ttf" if bold else "arial.ttf", "calibrib.ttf" if bold else "calibri.ttf"]
+            for fn in font_names:
+                try:
+                    return ImageFont.truetype(fn, size)
+                except Exception:
+                    pass
+            try:
+                return ImageFont.load_default()
+            except Exception:
+                return None
+
+        font_badge = get_font(22, bold=True)
+        font_pill = get_font(18, bold=True)
+        font_title = get_font(32, bold=True)
+        font_body = get_font(24, bold=False)
+        font_footer = get_font(18, bold=False)
+
+        def wrap_text(draw_ctx, text, font, max_w):
+            words = text.split()
+            lines = []
+            curr = []
+            for w in words:
+                curr.append(w)
+                bbox = draw_ctx.textbbox((0, 0), " ".join(curr), font=font)
+                if (bbox[2] - bbox[0]) > max_w:
+                    curr.pop()
+                    if curr:
+                        lines.append(" ".join(curr))
+                    curr = [w]
+            if curr:
+                lines.append(" ".join(curr))
+            return lines
+
+        w, h = 720, 1280
+        for idx, (stage_name, stage_narrative, stage_color) in enumerate(scene_definitions, start=1):
+            img = Image.new("RGB", (w, h), color=(10, 14, 26))
+            draw = ImageDraw.Draw(img)
+
+            # 1. Background Gradient Sinematik 9:16
+            for y in range(h):
+                ratio = y / h
+                r = int(10 + (stage_color[0] // 9) * ratio)
+                g = int(14 + (stage_color[1] // 9) * ratio)
+                b = int(26 + (stage_color[2] // 9) * ratio)
+                draw.line([(0, y), (w, y)], fill=(r, g, b))
+
+            # 2. Border Garis Ganda Elegan
+            draw.rounded_rectangle([(24, 24), (w - 24, h - 24)], radius=20, outline=(30, 41, 59), width=2)
+            draw.rounded_rectangle([(36, 36), (w - 36, h - 36)], radius=16, outline=stage_color, width=1)
+
+            # 3. Header Top Bar
+            # Pillar Badge
+            draw.rounded_rectangle([(52, 64), (w - 52, 124)], radius=12, fill=(15, 23, 42), outline=stage_color, width=2)
+            draw.text((70, 82), f"✦ {pill_label} • {pilar_desc}", fill=(241, 245, 249), font=font_pill)
+
+            # 4. Main Story Presentation Card
+            draw.rounded_rectangle([(52, 150), (w - 52, h - 140)], radius=18, fill=(15, 23, 42), outline=(51, 65, 85), width=2)
+
+            # Stage Name Banner
+            draw.rounded_rectangle([(76, 174), (w - 76, 234)], radius=10, fill=stage_color)
+            draw.text((92, 190), f"{stage_name} (Adegan {idx}/4)", fill=(255, 255, 255), font=font_badge)
+
+            # Judul Konten
+            title_lines = wrap_text(draw, clean_title, font_title, w - 160)
+            curr_y = 264
+            for line in title_lines[:3]:
+                draw.text((80, curr_y), line, fill=(248, 250, 252), font=font_title)
+                curr_y += 42
+
+            # Divider Line
+            draw.line([(80, curr_y + 12), (w - 80, curr_y + 12)], fill=(51, 65, 85), width=1)
+            curr_y += 32
+
+            # Story Narrative Text
+            narr_lines = wrap_text(draw, stage_narrative, font_body, w - 160)
+            for line in narr_lines[:6]:
+                draw.text((80, curr_y), line, fill=(203, 213, 225), font=font_body)
+                curr_y += 34
+
+            # Central Visual Aesthetic Icon / Box
+            box_top = max(curr_y + 30, 720)
+            box_bottom = min(box_top + 280, h - 190)
+            draw.rounded_rectangle([(80, box_top), (w - 80, box_bottom)], radius=14, fill=(10, 15, 30), outline=stage_color, width=1)
+            
+            phase_icons = ["⏳", "⚙️", "🔍", "✨"]
+            phase_labels = ["Tahap 1: Eksplorasi Awal", "Tahap 2: Transformasi Presisi", "Tahap 3: Penyempurnaan Detail", "Tahap 4: Mahakarya Terwujud"]
+            
+            draw.text((110, box_top + 30), phase_icons[idx - 1], fill=stage_color, font=font_title)
+            draw.text((170, box_top + 38), phase_labels[idx - 1], fill=(226, 232, 240), font=font_badge)
+            draw.text((110, box_top + 100), f"Soundtrack Mood: {mood.capitalize()}", fill=(148, 163, 184), font=font_pill)
+            draw.text((110, box_top + 140), f"Resolusi Vertikal: 720x1280 (9:16) HD", fill=(148, 163, 184), font=font_pill)
+
+            # 5. Footer Bar & Progress Indicator
+            dots_text = "● " * idx + "○ " * (4 - idx)
+            draw.text((54, h - 90), f"Alur Cerita: {dots_text.strip()}", fill=(148, 163, 184), font=font_footer)
+            draw.text((w - 280, h - 90), "Pita Waktu (C) 2026 Official", fill=(99, 102, 241), font=font_footer)
+
+            frame_file = temp_dir / f"scene_{idx:02d}.png"
+            img.save(frame_file, format="PNG")
+            img_paths.append(str(frame_file.resolve()))
+
+        # 6. Concat scenes with FFmpeg and attach Stereo AAC Soundtrack
+        concat_txt = temp_dir / "concat_list.txt"
+        duration_per_scene = duration / len(img_paths)
+        with open(concat_txt, "w", encoding="utf-8") as f:
+            for p in img_paths:
+                f.write(f"file '{Path(p).as_posix()}'\nduration {duration_per_scene:.2f}\n")
+            f.write(f"file '{Path(img_paths[-1]).as_posix()}'\n")
 
         audio_expr = music_manager.get_audio_expression_for_mood(mood)
         fade_out_start = max(1.0, duration - 1.2)
 
-        # Rancang filter grafik visual 720x1280 9:16 dengan efek gerak dinamis
-        video_filter = (
-            f"testsrc2=s=720x1280:r=30:d={duration},format=yuv420p,"
-            f"drawbox=x=0:y=0:w=720:h=1280:color=black@0.65:t=fill,"
-            f"drawbox=x=40:y=160:w=640:h=60:color={badge_color}@0.35:t=fill,"
-            f"drawtext=text='{pill_label}':fontsize=26:fontcolor=white:x=(w-text_w)/2:y=176:shadowcolor=black@0.6:shadowx=2:shadowy=2,"
-            f"drawtext=text='{safe_title}':fontsize=32:fontcolor=white:x=(w-text_w)/2:y=280:shadowcolor=black@0.7:shadowx=2:shadowy=2,"
-            f"drawtext=text='{sub_label}':fontsize=22:fontcolor=0x94A3B8:x=(w-text_w)/2:y=340:shadowcolor=black@0.5:shadowx=1:shadowy=1,"
-            f"drawbox=x=60:y=460:w=600:h=460:color=black@0.45:t=fill,"
-            f"drawtext=text='1. Kondisi Awal   -   2. Proses Presisi':fontsize=20:fontcolor=0x60A5FA:x=(w-text_w)/2:y=540,"
-            f"drawtext=text='3. Detail Makro    -   4. Final Reveal':fontsize=20:fontcolor=0x34D399:x=(w-text_w)/2:y=620,"
-            f"drawtext=text='Audio Soundtrack - {mood.capitalize()} Active':fontsize=18:fontcolor=0xFBBF24:x=(w-text_w)/2:y=760,"
-            f"drawtext=text='Pita Waktu (C) 2026':fontsize=22:fontcolor=0x64748B:x=(w-text_w)/2:y=h-140"
-        )
-
         cmd = [
             media_finisher.ffmpeg_exe,
             "-y",
-            "-f", "lavfi", "-i", video_filter,
+            "-f", "concat", "-safe", "0", "-i", str(concat_txt),
             "-f", "lavfi", "-i", f"aevalsrc={audio_expr}:s=44100:d={duration}",
+            "-vf", "fps=30,format=yuv420p",
             "-af", f"afade=t=in:ss=0:d=0.8,afade=t=out:st={fade_out_start}:d=1.2",
             "-c:v", "libx264",
-            "-pix_fmt", "yuv420p",
             "-preset", "fast",
             "-c:a", "aac",
             "-b:a", "192k",
@@ -185,26 +312,12 @@ class VeoClient:
 
         res = subprocess.run(cmd, capture_output=True, text=True)
         if res.returncode != 0:
-            # Fallback jika drawtext gagal (misal font sistem), gunakan color filter sederhana + audio
-            fallback_cmd = [
-                media_finisher.ffmpeg_exe,
-                "-y",
-                "-f", "lavfi", "-i", f"color=c=0x1e1b4b:s=720x1280:d={duration}",
-                "-f", "lavfi", "-i", f"aevalsrc={audio_expr}:s=44100:d={duration}",
-                "-af", f"afade=t=in:ss=0:d=0.8,afade=t=out:st={fade_out_start}:d=1.2",
-                "-c:v", "libx264",
-                "-pix_fmt", "yuv420p",
-                "-c:a", "aac",
-                "-b:a", "192k",
-                "-shortest",
-                output_path,
-            ]
-            res_fb = subprocess.run(fallback_cmd, capture_output=True, text=True)
-            if res_fb.returncode != 0:
-                with open(output_path, "wb") as f:
-                    f.write(b"MOCK_VIDEO_BINARY_DATA")
+            import shutil
+            shutil.copy2(img_paths[0], output_path)
+
         return output_path
 
 
 veo_client = VeoClient()
+
 
