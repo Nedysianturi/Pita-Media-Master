@@ -408,3 +408,78 @@ def test_23_platform_config_update_non_secrets(tmp_path):
     assert raw["FB_PAGE_ID"] == "987654321"
     assert raw["TELEGRAM_ADMIN_IDS"] == "111222"
 
+
+# --- TEST 24: Secret enable / disable toggle in SecretStore ---
+def test_24_secret_enable_disable_toggle(tmp_path):
+    vault_file = tmp_path / "credentials.vault"
+    store = SecretStore(vault_path=vault_file)
+    store.set_secret("TEST_TOGGLE_KEY", "SecretValue123", provider="gemini")
+    
+    meta = [m for m in store.list_secret_metadata() if m["name"] == "TEST_TOGGLE_KEY"][0]
+    assert meta["enabled"] is True
+    
+    # Disable secret
+    ok = store.disable_secret("TEST_TOGGLE_KEY")
+    assert ok is True
+    meta_disabled = [m for m in store.list_secret_metadata() if m["name"] == "TEST_TOGGLE_KEY"][0]
+    assert meta_disabled["enabled"] is False
+    
+    # Disabled secret should return None from get_secret unless enabled
+    assert store.get_secret("TEST_TOGGLE_KEY") is None
+    
+    # Enable secret again
+    ok = store.enable_secret("TEST_TOGGLE_KEY")
+    assert ok is True
+    meta_enabled = [m for m in store.list_secret_metadata() if m["name"] == "TEST_TOGGLE_KEY"][0]
+    assert meta_enabled["enabled"] is True
+    assert store.get_secret("TEST_TOGGLE_KEY") == "SecretValue123"
+
+
+# --- TEST 25: Dashboard API enable / disable endpoints ---
+@pytest.mark.asyncio
+async def test_25_dashboard_api_secret_enable_disable():
+    import httpx
+    from monitoring.dashboard.app import app
+    from core.security.credential_manager import credential_manager
+    
+    # Ensure test key in vault
+    credential_manager.secret_store.set_secret("API_TOGGLE_TEST_KEY", "SecretKeyVal999", provider="gemini")
+    
+    transport = httpx.ASGITransport(app=app)
+    async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+        # Test disable
+        res_dis = await client.post("/api/vault/secret/disable", json={"name": "API_TOGGLE_TEST_KEY"})
+        assert res_dis.status_code == 200
+        data_dis = res_dis.json()
+        assert data_dis["success"] is True
+        assert "dinonaktifkan" in data_dis["message"].lower()
+        
+        # Test enable
+        res_en = await client.post("/api/vault/secret/enable", json={"name": "API_TOGGLE_TEST_KEY"})
+        assert res_en.status_code == 200
+        data_en = res_en.json()
+        assert data_en["success"] is True
+        assert "diaktifkan" in data_en["message"].lower()
+        
+        # Clean up test key
+        credential_manager.secret_store.delete_secret("API_TOGGLE_TEST_KEY", confirmed_by_admin=True)
+
+
+# --- TEST 26: Provider / platform card metadata resolution returns no raw leaks ---
+def test_26_platform_cards_zero_raw_leak():
+    from core.security.credential_manager import credential_manager
+    
+    raw_secret = "AIzaSySuperSecretMustNeverLeakInAPI12345"
+    credential_manager.secret_store.set_secret("GEMINI_PRIMARY_API_KEY", raw_secret, provider="google")
+    
+    metadata_list = credential_manager.secret_store.list_secret_metadata()
+    serialized = json.dumps(metadata_list)
+    
+    assert raw_secret not in serialized
+    matched = [m for m in metadata_list if m["name"] == "GEMINI_PRIMARY_API_KEY"][0]
+    assert matched["fingerprint"] is not None
+    assert raw_secret not in matched["fingerprint"]
+    assert "value" not in matched
+    assert "raw_secret" not in matched
+
+

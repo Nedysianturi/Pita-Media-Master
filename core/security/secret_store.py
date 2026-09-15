@@ -505,12 +505,14 @@ class SecretStore:
         """Lists metadata for all secrets. NEVER returns raw secret values."""
         results = []
         for name, meta in self._secrets.items():
+            is_enabled = meta.get("status", "ACTIVE") != "DISABLED"
             results.append({
                 "name": name,
                 "provider": meta.get("provider", name.split("_")[0].lower()),
                 "fingerprint": meta.get("fingerprint", compute_fingerprint(meta.get("active", ""))),
                 "version": meta.get("version", 1),
                 "status": meta.get("status", "ACTIVE"),
+                "enabled": is_enabled,
                 "expires_at": meta.get("expires_at", "-"),
                 "has_previous": bool(meta.get("previous")),
                 "last_tested_at": meta.get("last_tested_at", "-"),

@@ -1,5 +1,15 @@
 [
   {
+    "version_id": "brand_bible_1789446025_7b4f50697156",
+    "config_name": "brand_bible",
+    "timestamp": 1789446025,
+    "iso_time": "2026-09-15T04:20:25Z",
+    "changed_by": "TEST_SUITE",
+    "reason": "Automated test snapshot",
+    "hash": "7b4f50697156",
+    "file_path": "C:\\Users\\Cipad\\.gemini\\antigravity-ide\\scratch\\pita-media\\storage\\config_history\\brand_bible_1789446025_7b4f50697156.json"
+  },
+  {
     "version_id": "brand_bible_1789445139_7b4f50697156",
     "config_name": "brand_bible",
     "timestamp": 1789445139,

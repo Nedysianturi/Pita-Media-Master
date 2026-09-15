@@ -333,6 +333,15 @@ async def disable_vault_secret_endpoint(payload: Dict[str, Any], _: bool = Depen
     success = secret_store.disable_secret(name)
     return {"success": success, "message": f"Secret '{name}' dinonaktifkan."}
 
+@app.post("/api/vault/secret/enable", response_class=JSONResponse)
+async def enable_vault_secret_endpoint(payload: Dict[str, Any], _: bool = Depends(verify_dashboard_access)):
+    from core.security.secret_store import secret_store
+    name = payload.get("name")
+    if not name:
+        raise HTTPException(status_code=400, detail="Nama secret wajib diisi.")
+    success = secret_store.enable_secret(name)
+    return {"success": success, "message": f"Secret '{name}' berhasil diaktifkan kembali."}
+
 @app.post("/api/vault/secret/delete", response_class=JSONResponse)
 async def delete_vault_secret_endpoint(payload: Dict[str, Any], _: bool = Depends(verify_dashboard_access)):
     from core.security.secret_store import secret_store
@@ -1079,91 +1088,60 @@ async def serve_dashboard(_: bool = Depends(verify_dashboard_access)):
                     </div>
                 </div>
 
-                <!-- Security Posture Card -->
-                <div class="grid-4" style="margin-bottom: 20px;">
-                    <div class="kpi-card" style="border-left: 4px solid #10B981;">
-                        <div class="kpi-header">
-                            <span class="kpi-title">Vault Encryption</span>
-                            <div class="kpi-icon-box" style="background: rgba(16,185,129,0.15); color: #10B981;">🔒</div>
-                        </div>
-                        <div id="sec-vault-enc" class="kpi-value" style="font-size: 1.25rem; color: #10B981;">ENCRYPTED ✅</div>
-                        <div class="kpi-footer">DPAPI / AES-256-GCM</div>
-                    </div>
-
-                    <div class="kpi-card" style="border-left: 4px solid #06B6D4;">
-                        <div class="kpi-header">
-                            <span class="kpi-title">Integrity Check</span>
-                            <div class="kpi-icon-box" style="background: rgba(6,182,212,0.15); color: #06B6D4;">🛡️</div>
-                        </div>
-                        <div id="sec-vault-integrity" class="kpi-value" style="font-size: 1.25rem; color: #06B6D4;">HEALTHY ✅</div>
-                        <div class="kpi-footer">HMAC-SHA256 Verified</div>
-                    </div>
-
-                    <div class="kpi-card" style="border-left: 4px solid #8B5CF6;">
-                        <div class="kpi-header">
-                            <span class="kpi-title">Leak Scanner</span>
-                            <div class="kpi-icon-box" style="background: rgba(139,92,246,0.15); color: #8B5CF6;">🔍</div>
-                        </div>
-                        <div id="sec-leak-scanner" class="kpi-value" style="font-size: 1.25rem; color: #8B5CF6;">CLEAN ✅</div>
-                        <div class="kpi-footer">Redaction Filter Active</div>
-                    </div>
-
-                    <div class="kpi-card" style="border-left: 4px solid #F59E0B;">
-                        <div class="kpi-header">
-                            <span class="kpi-title">Encrypted Backup</span>
-                            <div class="kpi-icon-box" style="background: rgba(245,158,11,0.15); color: #F59E0B;">💾</div>
-                        </div>
-                        <div id="sec-backup-status" class="kpi-value" style="font-size: 1.25rem; color: #F59E0B;">AVAILABLE ✅</div>
-                        <div class="kpi-footer">Multi-Gen .pmvault</div>
-                    </div>
-                </div>
-
-                <!-- Hardened Vault Table -->
-                <div class="card" style="margin-bottom: 24px;">
-                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; border-bottom: 1px solid var(--border); padding-bottom: 12px;">
-                        <div>
-                            <div class="card-title" style="margin-bottom: 2px; font-size: 1.05rem; color: #60A5FA;">🔐 Persistent Credential Vault (Active Secrets)</div>
-                            <p style="font-size: 0.78rem; color: var(--text-muted); margin-bottom:0;">Daftar token & kunci API yang tersimpan dalam vault terenkripsi. Nilai mentah dimasking dengan sidik jari 8 karakter.</p>
+                <!-- Compact Security Summary Header (Single Source of Truth) -->
+                <div class="card" style="margin-bottom: 20px; padding: 14px 20px; background: rgba(15, 23, 42, 0.75); border: 1px solid rgba(255,255,255,0.08); border-radius: 10px;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 14px;">
+                        <div style="display: flex; align-items: center; gap: 28px; flex-wrap: wrap;">
+                            <div style="display: flex; align-items: center; gap: 10px;">
+                                <div style="width: 36px; height: 36px; border-radius: 8px; background: rgba(16,185,129,0.15); display: flex; align-items: center; justify-content: center; font-size: 1.1rem; color: #10B981;">🔒</div>
+                                <div>
+                                    <div style="font-size: 0.7rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px;">Vault Encryption</div>
+                                    <div id="sec-vault-enc" style="font-size: 0.92rem; font-weight: 700; color: #10B981;">ENCRYPTED ✅</div>
+                                </div>
+                            </div>
+                            <div style="display: flex; align-items: center; gap: 10px;">
+                                <div style="width: 36px; height: 36px; border-radius: 8px; background: rgba(6,182,212,0.15); display: flex; align-items: center; justify-content: center; font-size: 1.1rem; color: #06B6D4;">🛡️</div>
+                                <div>
+                                    <div style="font-size: 0.7rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px;">Credential Health</div>
+                                    <div id="sec-vault-health" style="font-size: 0.92rem; font-weight: 700; color: #06B6D4;">HEALTHY ✅</div>
+                                </div>
+                            </div>
+                            <div style="display: flex; align-items: center; gap: 10px;">
+                                <div style="width: 36px; height: 36px; border-radius: 8px; background: rgba(245,158,11,0.15); display: flex; align-items: center; justify-content: center; font-size: 1.1rem; color: #F59E0B;">💾</div>
+                                <div>
+                                    <div style="font-size: 0.7rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px;">Backup Status</div>
+                                    <div id="sec-backup-status" style="font-size: 0.92rem; font-weight: 700; color: #F59E0B;">AVAILABLE ✅</div>
+                                </div>
+                            </div>
+                            <div style="display: flex; align-items: center; gap: 10px;">
+                                <div style="width: 36px; height: 36px; border-radius: 8px; background: rgba(139,92,246,0.15); display: flex; align-items: center; justify-content: center; font-size: 1.1rem; color: #8B5CF6;">🔍</div>
+                                <div>
+                                    <div style="font-size: 0.7rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px;">Security Issues Count</div>
+                                    <div id="sec-vault-issues" style="font-size: 0.92rem; font-weight: 700; color: #34D399;">0 ISSUES (CLEAN) ✅</div>
+                                </div>
+                            </div>
                         </div>
                         <div style="display: flex; gap: 8px;">
-                            <button class="btn btn-outline" style="font-size: 0.75rem; padding: 6px 12px;" onclick="fetchVaultStatus()">🔄 Refresh Vault</button>
-                            <button class="btn btn-primary" style="font-size: 0.75rem; padding: 6px 12px;" onclick="openReplaceSecretModal('', '')">➕ Ganti / Tambah Secret</button>
+                            <button class="btn btn-outline" style="font-size: 0.78rem; padding: 6px 12px;" onclick="fetchVaultStatus(); fetchEnvConfig(true);">🔄 Refresh Semua Status</button>
+                            <button class="btn btn-primary" style="font-size: 0.78rem; padding: 6px 14px; background: linear-gradient(135deg, #3B82F6, #1D4ED8);" onclick="openReplaceSecretModal('', '')">➕ Tambah Kredensial Baru</button>
                         </div>
                     </div>
-                    <table>
-                        <thead>
-                            <tr>
-                                <th>Kredensial</th>
-                                <th>Provider</th>
-                                <th>Fingerprint / Mask</th>
-                                <th>Kesehatan</th>
-                                <th>Masa Berlaku</th>
-                                <th>Aksi</th>
-                            </tr>
-                        </thead>
-                        <tbody id="vault-secrets-tbody">
-                            <tr><td colspan="6" style="text-align:center; padding:20px; color:var(--text-muted);">Memuat vault secrets...</td></tr>
-                        </tbody>
-                    </table>
                 </div>
 
-                <!-- Panel Konfigurasi Platform & Referensi Kredensial (Single Source of Truth: Vault) -->
+                <!-- Primary Provider & Platform Cards Grid -->
                 <div class="card" style="margin-bottom: 24px;">
                     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; border-bottom: 1px solid var(--border); padding-bottom: 14px;">
                         <div>
-                            <div class="card-title" style="margin-bottom: 4px; font-size: 1.05rem; color: #60A5FA;">⚙️ Integrasi Platform & Konfigurasi Non-Secret</div>
-                            <p style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 0;">Semua API Key dan Token sensitif dikelola dan dienkripsi secara terpusat di <b>Persistent Credential Vault</b> di atas. Panel ini mengatur parameter platform non-rahasia.</p>
+                            <div class="card-title" style="margin-bottom: 4px; font-size: 1.05rem; color: #60A5FA;">⚡ Pusat Koneksi & Manajemen Kredensial Terenkripsi</div>
+                            <p style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 0;">Setiap kartu di bawah mengelola siklus hidup kredensialnya sendiri yang terenkripsi di <b>Windows DPAPI Vault</b>. Kunci mentah tidak pernah diekspos ke browser.</p>
                         </div>
-                        <div style="display: flex; gap: 10px;">
-                            <button class="btn btn-outline" onclick="fetchEnvConfig(true); fetchVaultStatus();" style="font-size: 0.85rem;">🔄 Refresh Status</button>
-                            <button class="btn btn-primary" onclick="savePlatformConfig()" style="padding: 10px 24px; font-size: 0.88rem; font-weight: 700; background: linear-gradient(135deg, #10B981, #059669); box-shadow: 0 4px 14px rgba(16,185,129,0.3);">💾 Simpan Konfigurasi Platform</button>
-                        </div>
+                        <button class="btn btn-primary" onclick="savePlatformConfig()" style="padding: 10px 24px; font-size: 0.88rem; font-weight: 700; background: linear-gradient(135deg, #10B981, #059669); box-shadow: 0 4px 14px rgba(16,185,129,0.3);">💾 Simpan Konfigurasi Platform (.env)</button>
                     </div>
 
-                    <!-- 3 Logical Columns / Cards -->
+                    <!-- 3 Column Responsive Grid -->
                     <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px;">
                         
-                        <!-- Panel 1: AI Provider Keys & Tier Monitoring -->
+                        <!-- Panel 1: Mesin AI & Multi-Tier -->
                         <div style="background: rgba(255,255,255,0.02); border: 1px solid var(--border); border-radius: 8px; padding: 16px;">
                             <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; border-bottom: 1px solid rgba(255,255,255,0.06); padding-bottom: 10px;">
                                 <div style="font-weight: 700; font-size: 0.92rem; color: #60A5FA; display:flex; align-items:center; gap:6px;">
@@ -1172,67 +1150,85 @@ async def serve_dashboard(_: bool = Depends(verify_dashboard_access)):
                                 <button class="btn btn-outline" style="font-size: 0.72rem; padding: 4px 8px;" onclick="showAddProviderModal()">+ Add Provider</button>
                             </div>
 
-                            <!-- GEMINI_PRIMARY_API_KEY -->
-                            <div class="form-group" style="background: rgba(96,165,250,0.03); border: 1px solid rgba(96,165,250,0.15); border-radius: 6px; padding: 12px; margin-bottom: 14px;">
+                            <!-- Gemini Primary Card -->
+                            <div class="form-group" style="background: rgba(96,165,250,0.03); border: 1px solid rgba(96,165,250,0.18); border-radius: 6px; padding: 12px; margin-bottom: 14px;">
                                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
                                     <div style="display:flex; align-items:center; gap:6px;">
-                                        <span style="font-weight: 700; font-size:0.85rem;">Google Gemini (Utama)</span>
+                                        <span style="font-weight: 700; font-size:0.85rem; color:#F1F5F9;">Google Gemini (Utama)</span>
                                         <span class="brand-badge" style="color:#60A5FA; border-color:rgba(96,165,250,0.4); font-size:0.65rem;">Tier 1</span>
                                     </div>
                                     <span id="ref-status-gemini" style="font-size: 0.72rem; font-weight: 600; color: var(--text-muted);">● Memeriksa...</span>
                                 </div>
-                                <div style="font-size:0.75rem; color:var(--text-muted); margin-bottom:8px; font-family:monospace;">
-                                    Ref: <span style="color:#93C5FD;">GEMINI_PRIMARY_API_KEY</span>
+                                <div style="display:flex; justify-content:space-between; align-items:center; font-size:0.75rem; margin-bottom:6px;">
+                                    <span style="color:var(--text-muted); font-family:monospace;">Ref: <code style="color:#93C5FD;">GEMINI_PRIMARY_API_KEY</code></span>
+                                    <span style="color:var(--text-muted);">Key: <code id="fp-gemini" style="color:#34D399; font-family:monospace;">••••••••</code></span>
+                                </div>
+                                <div style="display:flex; justify-content:space-between; font-size:0.7rem; color:var(--text-muted); margin-bottom:8px;">
+                                    <span>Uji: <b id="tested-gemini" style="color:#10B981;">-</b></span>
+                                    <span>Update: <span id="updated-gemini">-</span></span>
                                 </div>
                                 <div style="display: flex; gap: 6px;">
-                                    <button class="btn btn-outline" style="flex:1; font-size: 0.75rem; padding: 6px 10px;" onclick="openReplaceSecretModal('GEMINI_PRIMARY_API_KEY', 'google')">🔐 Manage in Vault</button>
-                                    <button class="btn btn-outline" style="font-size: 0.75rem; padding: 6px 10px; white-space: nowrap;" onclick="testVaultSecret('GEMINI_PRIMARY_API_KEY')">🔍 Test</button>
+                                    <button class="btn btn-outline" style="flex:1; font-size: 0.74rem; padding: 5px 8px; border-color:var(--accent-indigo); color:#818cf8;" onclick="openReplaceSecretModal('GEMINI_PRIMARY_API_KEY', 'google')">🔄 Ganti / Set</button>
+                                    <button class="btn btn-outline" style="font-size: 0.74rem; padding: 5px 8px; white-space: nowrap;" onclick="testVaultSecret('GEMINI_PRIMARY_API_KEY')">🔍 Test</button>
+                                    <button id="btn-toggle-gemini" class="btn btn-outline" style="font-size: 0.74rem; padding: 5px 8px;" onclick="toggleVaultSecretEnabled('GEMINI_PRIMARY_API_KEY', true)">⏸️</button>
                                 </div>
-                                <div style="display:flex; justify-content:space-between; margin-top:8px; font-size:0.7rem; color:var(--text-muted);">
+                                <div style="display:flex; justify-content:space-between; margin-top:8px; font-size:0.68rem; color:var(--text-muted);">
                                     <span>Model: Gemini 3.6 Flash, Imagen 3, Veo</span>
-                                    <span style="color:#34D399; font-weight:600;">TEXT, REASONING, IMAGE</span>
+                                    <span style="color:#34D399; font-weight:600;">DEFAULT ROUTE</span>
                                 </div>
                             </div>
 
-                            <!-- GEMINI_BACKUP_API_KEY -->
-                            <div class="form-group" style="background: rgba(245,158,11,0.03); border: 1px solid rgba(245,158,11,0.15); border-radius: 6px; padding: 12px; margin-bottom: 14px;">
+                            <!-- Gemini Backup Card -->
+                            <div class="form-group" style="background: rgba(245,158,11,0.03); border: 1px solid rgba(245,158,11,0.18); border-radius: 6px; padding: 12px; margin-bottom: 14px;">
                                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
                                     <div style="display:flex; align-items:center; gap:6px;">
-                                        <span style="font-weight: 700; font-size:0.85rem;">Google Gemini (Cadangan)</span>
+                                        <span style="font-weight: 700; font-size:0.85rem; color:#F1F5F9;">Google Gemini (Cadangan)</span>
                                         <span class="brand-badge" style="color:#F59E0B; border-color:rgba(245,158,11,0.4); font-size:0.65rem;">Tier 1 Backup</span>
                                     </div>
                                     <span id="ref-status-gemini-2" style="font-size: 0.72rem; font-weight: 600; color: var(--text-muted);">● Memeriksa...</span>
                                 </div>
-                                <div style="font-size:0.75rem; color:var(--text-muted); margin-bottom:8px; font-family:monospace;">
-                                    Ref: <span style="color:#FCD34D;">GEMINI_BACKUP_API_KEY</span>
+                                <div style="display:flex; justify-content:space-between; align-items:center; font-size:0.75rem; margin-bottom:6px;">
+                                    <span style="color:var(--text-muted); font-family:monospace;">Ref: <code style="color:#FCD34D;">GEMINI_BACKUP_API_KEY</code></span>
+                                    <span style="color:var(--text-muted);">Key: <code id="fp-gemini-2" style="color:#34D399; font-family:monospace;">••••••••</code></span>
+                                </div>
+                                <div style="display:flex; justify-content:space-between; font-size:0.7rem; color:var(--text-muted); margin-bottom:8px;">
+                                    <span>Uji: <b id="tested-gemini-2" style="color:#10B981;">-</b></span>
+                                    <span>Update: <span id="updated-gemini-2">-</span></span>
                                 </div>
                                 <div style="display: flex; gap: 6px;">
-                                    <button class="btn btn-outline" style="flex:1; font-size: 0.75rem; padding: 6px 10px;" onclick="openReplaceSecretModal('GEMINI_BACKUP_API_KEY', 'google')">🔐 Manage in Vault</button>
-                                    <button class="btn btn-outline" style="font-size: 0.75rem; padding: 6px 10px; white-space: nowrap;" onclick="testVaultSecret('GEMINI_BACKUP_API_KEY')">🔍 Test</button>
+                                    <button class="btn btn-outline" style="flex:1; font-size: 0.74rem; padding: 5px 8px; border-color:var(--accent-indigo); color:#818cf8;" onclick="openReplaceSecretModal('GEMINI_BACKUP_API_KEY', 'google')">🔄 Ganti / Set</button>
+                                    <button class="btn btn-outline" style="font-size: 0.74rem; padding: 5px 8px; white-space: nowrap;" onclick="testVaultSecret('GEMINI_BACKUP_API_KEY')">🔍 Test</button>
+                                    <button id="btn-toggle-gemini-2" class="btn btn-outline" style="font-size: 0.74rem; padding: 5px 8px;" onclick="toggleVaultSecretEnabled('GEMINI_BACKUP_API_KEY', true)">⏸️</button>
                                 </div>
-                                <div style="display:flex; justify-content:space-between; margin-top:8px; font-size:0.7rem; color:var(--text-muted);">
-                                    <span>Auto-failover jika kuota Key Utama 429</span>
+                                <div style="display:flex; justify-content:space-between; margin-top:8px; font-size:0.68rem; color:var(--text-muted);">
+                                    <span>Auto-failover jika kuota Key 1 habis / 429</span>
                                     <span style="color:#F59E0B; font-weight:600;">AUTO-FAILOVER</span>
                                 </div>
                             </div>
 
-                            <!-- XAI_API_KEY -->
-                            <div class="form-group" style="background: rgba(167,139,250,0.03); border: 1px solid rgba(167,139,250,0.15); border-radius: 6px; padding: 12px;">
+                            <!-- xAI / Grok Card -->
+                            <div class="form-group" style="background: rgba(167,139,250,0.03); border: 1px solid rgba(167,139,250,0.18); border-radius: 6px; padding: 12px;">
                                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
                                     <div style="display:flex; align-items:center; gap:6px;">
-                                        <span style="font-weight: 700; font-size:0.85rem;">xAI / Grok</span>
+                                        <span style="font-weight: 700; font-size:0.85rem; color:#F1F5F9;">xAI / Grok</span>
                                         <span class="brand-badge" style="color:#A78BFA; border-color:rgba(167,139,250,0.4); font-size:0.65rem;">Tier 2 Fallback</span>
                                     </div>
                                     <span id="ref-status-xai" style="font-size: 0.72rem; font-weight: 600; color: var(--text-muted);">● Memeriksa...</span>
                                 </div>
-                                <div style="font-size:0.75rem; color:var(--text-muted); margin-bottom:8px; font-family:monospace;">
-                                    Ref: <span style="color:#C4B5FD;">XAI_API_KEY</span>
+                                <div style="display:flex; justify-content:space-between; align-items:center; font-size:0.75rem; margin-bottom:6px;">
+                                    <span style="color:var(--text-muted); font-family:monospace;">Ref: <code style="color:#C4B5FD;">XAI_API_KEY</code></span>
+                                    <span style="color:var(--text-muted);">Key: <code id="fp-xai" style="color:#34D399; font-family:monospace;">••••••••</code></span>
+                                </div>
+                                <div style="display:flex; justify-content:space-between; font-size:0.7rem; color:var(--text-muted); margin-bottom:8px;">
+                                    <span>Uji: <b id="tested-xai" style="color:#10B981;">-</b></span>
+                                    <span>Update: <span id="updated-xai">-</span></span>
                                 </div>
                                 <div style="display: flex; gap: 6px;">
-                                    <button class="btn btn-outline" style="flex:1; font-size: 0.75rem; padding: 6px 10px;" onclick="openReplaceSecretModal('XAI_API_KEY', 'xai')">🔐 Manage in Vault</button>
-                                    <button class="btn btn-outline" style="font-size: 0.75rem; padding: 6px 10px; white-space: nowrap;" onclick="testVaultSecret('XAI_API_KEY')">🔍 Test</button>
+                                    <button class="btn btn-outline" style="flex:1; font-size: 0.74rem; padding: 5px 8px; border-color:var(--accent-indigo); color:#818cf8;" onclick="openReplaceSecretModal('XAI_API_KEY', 'xai')">🔄 Ganti / Set</button>
+                                    <button class="btn btn-outline" style="font-size: 0.74rem; padding: 5px 8px; white-space: nowrap;" onclick="testVaultSecret('XAI_API_KEY')">🔍 Test</button>
+                                    <button id="btn-toggle-xai" class="btn btn-outline" style="font-size: 0.74rem; padding: 5px 8px;" onclick="toggleVaultSecretEnabled('XAI_API_KEY', true)">⏸️</button>
                                 </div>
-                                <div style="display:flex; justify-content:space-between; margin-top:8px; font-size:0.7rem; color:var(--text-muted);">
+                                <div style="display:flex; justify-content:space-between; margin-top:8px; font-size:0.68rem; color:var(--text-muted);">
                                     <span>Secondary fallback non-Google</span>
                                     <span style="color:#A78BFA; font-weight:600;">TEXT, REASONING</span>
                                 </div>
@@ -1241,84 +1237,127 @@ async def serve_dashboard(_: bool = Depends(verify_dashboard_access)):
 
                         <!-- Panel 2: Meta / Social Media Platforms -->
                         <div style="background: rgba(255,255,255,0.02); border: 1px solid var(--border); border-radius: 8px; padding: 16px;">
-                            <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px;">
-                                <div style="font-weight: 700; font-size: 0.9rem; color: #10B981;">📱 Akun Media Sosial (Meta)</div>
+                            <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; border-bottom: 1px solid rgba(255,255,255,0.06); padding-bottom: 10px;">
+                                <div style="font-weight: 700; font-size: 0.92rem; color: #10B981; display:flex; align-items:center; gap:6px;">
+                                    📱 Akun Media Sosial (Meta Graph)
+                                </div>
                                 <span class="brand-badge" style="border-color: rgba(16,185,129,0.3); color: #10B981;">Publishing</span>
                             </div>
 
                             <!-- FB_PAGE_ID (Non-Secret Config) -->
                             <div class="form-group" style="margin-bottom: 14px;">
-                                <label class="form-label">FB_PAGE_ID (Fanspage ID) <span style="color:var(--accent-rose);">*</span></label>
+                                <label class="form-label" style="font-size:0.8rem;">FB_PAGE_ID (Fanspage ID Publik) <span style="color:var(--accent-rose);">*</span></label>
                                 <input type="text" id="env-fb-page-id" class="form-control" placeholder="1253340697871457" style="font-size: 0.83rem;">
-                                <small style="font-size: 0.72rem; color: var(--text-muted);">ID Publik Fanspage Facebook @Pitamediaid</small>
+                                <small style="font-size: 0.7rem; color: var(--text-muted);">ID Publik Fanspage Facebook @Pitamediaid</small>
                             </div>
 
-                            <!-- META_SYSTEM_USER_TOKEN -->
-                            <div class="form-group" style="background: rgba(16,185,129,0.03); border: 1px solid rgba(16,185,129,0.15); border-radius: 6px; padding: 12px; margin-bottom: 14px;">
+                            <!-- Facebook Fanspage Card -->
+                            <div class="form-group" style="background: rgba(16,185,129,0.03); border: 1px solid rgba(16,185,129,0.18); border-radius: 6px; padding: 12px; margin-bottom: 14px;">
                                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
-                                    <span style="font-weight: 700; font-size:0.85rem;">Meta / Facebook Access Token</span>
+                                    <span style="font-weight: 700; font-size:0.85rem; color:#F1F5F9;">Facebook Page Token</span>
                                     <span id="ref-status-fb" style="font-size: 0.72rem; font-weight: 600; color: var(--text-muted);">● Memeriksa...</span>
                                 </div>
-                                <div style="font-size:0.75rem; color:var(--text-muted); margin-bottom:8px; font-family:monospace;">
-                                    Ref: <span style="color:#6EE7B7;">META_SYSTEM_USER_TOKEN</span>
+                                <div style="display:flex; justify-content:space-between; align-items:center; font-size:0.75rem; margin-bottom:6px;">
+                                    <span style="color:var(--text-muted); font-family:monospace;">Ref: <code style="color:#6EE7B7;">META_SYSTEM_USER_TOKEN</code></span>
+                                    <span style="color:var(--text-muted);">Token: <code id="fp-fb" style="color:#34D399; font-family:monospace;">••••••••</code></span>
+                                </div>
+                                <div style="display:flex; justify-content:space-between; font-size:0.7rem; color:var(--text-muted); margin-bottom:8px;">
+                                    <span>Uji: <b id="tested-fb" style="color:#10B981;">-</b></span>
+                                    <span>Update: <span id="updated-fb">-</span></span>
                                 </div>
                                 <div style="display: flex; gap: 6px;">
-                                    <button class="btn btn-outline" style="flex:1; font-size: 0.75rem; padding: 6px 10px;" onclick="openReplaceSecretModal('META_SYSTEM_USER_TOKEN', 'facebook')">🔐 Manage in Vault</button>
-                                    <button class="btn btn-outline" style="font-size: 0.75rem; padding: 6px 10px; white-space: nowrap;" onclick="testVaultSecret('META_SYSTEM_USER_TOKEN')">🔍 Test</button>
+                                    <button class="btn btn-outline" style="flex:1; font-size: 0.74rem; padding: 5px 8px; border-color:var(--accent-indigo); color:#818cf8;" onclick="openReplaceSecretModal('META_SYSTEM_USER_TOKEN', 'facebook')">🔄 Ganti / Set</button>
+                                    <button class="btn btn-outline" style="font-size: 0.74rem; padding: 5px 8px; white-space: nowrap;" onclick="testVaultSecret('META_SYSTEM_USER_TOKEN')">🔍 Test</button>
+                                    <button id="btn-toggle-fb" class="btn btn-outline" style="font-size: 0.74rem; padding: 5px 8px;" onclick="toggleVaultSecretEnabled('META_SYSTEM_USER_TOKEN', true)">⏸️</button>
                                 </div>
                             </div>
 
-                            <!-- THREADS_ACCESS_TOKEN -->
-                            <div class="form-group" style="background: rgba(16,185,129,0.03); border: 1px solid rgba(16,185,129,0.15); border-radius: 6px; padding: 12px;">
+                            <!-- Instagram Business Card -->
+                            <div class="form-group" style="background: rgba(236,72,153,0.03); border: 1px solid rgba(236,72,153,0.18); border-radius: 6px; padding: 12px; margin-bottom: 14px;">
                                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
-                                    <span style="font-weight: 700; font-size:0.85rem;">Threads Access Token</span>
-                                    <span id="ref-status-threads" style="font-size: 0.72rem; font-weight: 600; color: var(--text-muted);">● Memeriksa...</span>
+                                    <span style="font-weight: 700; font-size:0.85rem; color:#F1F5F9;">Instagram Business Token</span>
+                                    <span id="ref-status-ig" style="font-size: 0.72rem; font-weight: 600; color: var(--text-muted);">● Memeriksa...</span>
                                 </div>
-                                <div style="font-size:0.75rem; color:var(--text-muted); margin-bottom:8px; font-family:monospace;">
-                                    Ref: <span style="color:#6EE7B7;">THREADS_ACCESS_TOKEN</span>
+                                <div style="display:flex; justify-content:space-between; align-items:center; font-size:0.75rem; margin-bottom:6px;">
+                                    <span style="color:var(--text-muted); font-family:monospace;">Ref: <code style="color:#F472B6;">META_SYSTEM_USER_TOKEN</code></span>
+                                    <span style="color:var(--text-muted);">Token: <code id="fp-ig" style="color:#34D399; font-family:monospace;">••••••••</code></span>
+                                </div>
+                                <div style="display:flex; justify-content:space-between; font-size:0.7rem; color:var(--text-muted); margin-bottom:8px;">
+                                    <span>Uji: <b id="tested-ig" style="color:#10B981;">-</b></span>
+                                    <span>Update: <span id="updated-ig">-</span></span>
                                 </div>
                                 <div style="display: flex; gap: 6px;">
-                                    <button class="btn btn-outline" style="flex:1; font-size: 0.75rem; padding: 6px 10px;" onclick="openReplaceSecretModal('THREADS_ACCESS_TOKEN', 'threads')">🔐 Manage in Vault</button>
-                                    <button class="btn btn-outline" style="font-size: 0.75rem; padding: 6px 10px; white-space: nowrap;" onclick="testVaultSecret('THREADS_ACCESS_TOKEN')">🔍 Test</button>
+                                    <button class="btn btn-outline" style="flex:1; font-size: 0.74rem; padding: 5px 8px; border-color:var(--accent-indigo); color:#818cf8;" onclick="openReplaceSecretModal('META_SYSTEM_USER_TOKEN', 'instagram')">🔄 Ganti / Set</button>
+                                    <button class="btn btn-outline" style="font-size: 0.74rem; padding: 5px 8px; white-space: nowrap;" onclick="testVaultSecret('META_SYSTEM_USER_TOKEN')">🔍 Test</button>
+                                    <button id="btn-toggle-ig" class="btn btn-outline" style="font-size: 0.74rem; padding: 5px 8px;" onclick="toggleVaultSecretEnabled('META_SYSTEM_USER_TOKEN', true)">⏸️</button>
+                                </div>
+                            </div>
+
+                            <!-- Threads API Card -->
+                            <div class="form-group" style="background: rgba(16,185,129,0.03); border: 1px solid rgba(16,185,129,0.18); border-radius: 6px; padding: 12px;">
+                                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+                                    <span style="font-weight: 700; font-size:0.85rem; color:#F1F5F9;">Threads Access Token</span>
+                                    <span id="ref-status-threads" style="font-size: 0.72rem; font-weight: 600; color: var(--text-muted);">● Memeriksa...</span>
+                                </div>
+                                <div style="display:flex; justify-content:space-between; align-items:center; font-size:0.75rem; margin-bottom:6px;">
+                                    <span style="color:var(--text-muted); font-family:monospace;">Ref: <code style="color:#6EE7B7;">THREADS_ACCESS_TOKEN</code></span>
+                                    <span style="color:var(--text-muted);">Token: <code id="fp-threads" style="color:#34D399; font-family:monospace;">••••••••</code></span>
+                                </div>
+                                <div style="display:flex; justify-content:space-between; font-size:0.7rem; color:var(--text-muted); margin-bottom:8px;">
+                                    <span>Uji: <b id="tested-threads" style="color:#10B981;">-</b></span>
+                                    <span>Update: <span id="updated-threads">-</span></span>
+                                </div>
+                                <div style="display: flex; gap: 6px;">
+                                    <button class="btn btn-outline" style="flex:1; font-size: 0.74rem; padding: 5px 8px; border-color:var(--accent-indigo); color:#818cf8;" onclick="openReplaceSecretModal('THREADS_ACCESS_TOKEN', 'threads')">🔄 Ganti / Set</button>
+                                    <button class="btn btn-outline" style="font-size: 0.74rem; padding: 5px 8px; white-space: nowrap;" onclick="testVaultSecret('THREADS_ACCESS_TOKEN')">🔍 Test</button>
+                                    <button id="btn-toggle-threads" class="btn btn-outline" style="font-size: 0.74rem; padding: 5px 8px;" onclick="toggleVaultSecretEnabled('THREADS_ACCESS_TOKEN', true)">⏸️</button>
                                 </div>
                             </div>
                         </div>
 
                         <!-- Panel 3: Telegram C2 Bot & Alerts -->
                         <div style="background: rgba(255,255,255,0.02); border: 1px solid var(--border); border-radius: 8px; padding: 16px;">
-                            <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px;">
-                                <div style="font-weight: 700; font-size: 0.9rem; color: #F59E0B;">📡 Telegram C2 & Alerts</div>
+                            <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; border-bottom: 1px solid rgba(255,255,255,0.06); padding-bottom: 10px;">
+                                <div style="font-weight: 700; font-size: 0.92rem; color: #F59E0B; display:flex; align-items:center; gap:6px;">
+                                    📡 Telegram C2 & Command Bot
+                                </div>
                                 <span class="brand-badge" style="border-color: rgba(245,158,11,0.3); color: #F59E0B;">Command Bot</span>
                             </div>
 
-                            <!-- TELEGRAM_BOT_TOKEN -->
-                            <div class="form-group" style="background: rgba(245,158,11,0.03); border: 1px solid rgba(245,158,11,0.15); border-radius: 6px; padding: 12px; margin-bottom: 14px;">
+                            <!-- Telegram Bot Card -->
+                            <div class="form-group" style="background: rgba(245,158,11,0.03); border: 1px solid rgba(245,158,11,0.18); border-radius: 6px; padding: 12px; margin-bottom: 14px;">
                                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
-                                    <span style="font-weight: 700; font-size:0.85rem;">Telegram Bot Token</span>
+                                    <span style="font-weight: 700; font-size:0.85rem; color:#F1F5F9;">Telegram Bot Token</span>
                                     <span id="ref-status-telegram" style="font-size: 0.72rem; font-weight: 600; color: var(--text-muted);">● Memeriksa...</span>
                                 </div>
-                                <div style="font-size:0.75rem; color:var(--text-muted); margin-bottom:8px; font-family:monospace;">
-                                    Ref: <span style="color:#FCD34D;">TELEGRAM_BOT_TOKEN</span>
+                                <div style="display:flex; justify-content:space-between; align-items:center; font-size:0.75rem; margin-bottom:6px;">
+                                    <span style="color:var(--text-muted); font-family:monospace;">Ref: <code style="color:#FCD34D;">TELEGRAM_BOT_TOKEN</code></span>
+                                    <span style="color:var(--text-muted);">Token: <code id="fp-telegram" style="color:#34D399; font-family:monospace;">••••••••</code></span>
+                                </div>
+                                <div style="display:flex; justify-content:space-between; font-size:0.7rem; color:var(--text-muted); margin-bottom:8px;">
+                                    <span>Uji: <b id="tested-telegram" style="color:#10B981;">-</b></span>
+                                    <span>Update: <span id="updated-telegram">-</span></span>
                                 </div>
                                 <div style="display: flex; gap: 6px;">
-                                    <button class="btn btn-outline" style="flex:1; font-size: 0.75rem; padding: 6px 10px;" onclick="openReplaceSecretModal('TELEGRAM_BOT_TOKEN', 'telegram')">🔐 Manage in Vault</button>
-                                    <button class="btn btn-outline" style="font-size: 0.75rem; padding: 6px 10px; white-space: nowrap;" onclick="testVaultSecret('TELEGRAM_BOT_TOKEN')">🔍 Test</button>
+                                    <button class="btn btn-outline" style="flex:1; font-size: 0.74rem; padding: 5px 8px; border-color:var(--accent-indigo); color:#818cf8;" onclick="openReplaceSecretModal('TELEGRAM_BOT_TOKEN', 'telegram')">🔄 Ganti / Set</button>
+                                    <button class="btn btn-outline" style="font-size: 0.74rem; padding: 5px 8px; white-space: nowrap;" onclick="testVaultSecret('TELEGRAM_BOT_TOKEN')">🔍 Test</button>
+                                    <button id="btn-toggle-telegram" class="btn btn-outline" style="font-size: 0.74rem; padding: 5px 8px;" onclick="toggleVaultSecretEnabled('TELEGRAM_BOT_TOKEN', true)">⏸️</button>
                                 </div>
-                                <small style="font-size: 0.72rem; color: var(--text-muted); display:block; margin-top:6px;">Bot @pitamediabot dari @BotFather</small>
+                                <small style="font-size: 0.7rem; color: var(--text-muted); display:block; margin-top:6px;">Bot @pitamediabot dari @BotFather</small>
                             </div>
 
                             <!-- TELEGRAM_ADMIN_IDS (Non-Secret Config) -->
                             <div class="form-group" style="margin-top: 14px;">
-                                <label class="form-label">TELEGRAM_ADMIN_IDS (ID Admin Telegram)</label>
+                                <label class="form-label" style="font-size:0.8rem;">TELEGRAM_ADMIN_IDS (ID Admin Telegram)</label>
                                 <input type="text" id="env-telegram-admins" class="form-control" placeholder="308917129" style="font-size: 0.83rem;">
-                                <small style="font-size: 0.72rem; color: var(--text-muted);">ID Telegram pemilik untuk otorisasi command bot</small>
+                                <small style="font-size: 0.7rem; color: var(--text-muted);">ID Telegram pemilik untuk otorisasi command bot</small>
                             </div>
 
                             <!-- TELEGRAM_ALERT_CHAT_ID (Non-Secret Config) -->
                             <div class="form-group" style="margin-top: 14px;">
-                                <label class="form-label">TELEGRAM_ALERT_CHAT_ID (Chat ID Notifikasi)</label>
+                                <label class="form-label" style="font-size:0.8rem;">TELEGRAM_ALERT_CHAT_ID (Chat ID Notifikasi)</label>
                                 <input type="text" id="env-telegram-alert-chat" class="form-control" placeholder="308917129" style="font-size: 0.83rem;">
-                                <small style="font-size: 0.72rem; color: var(--text-muted);">Tujuan pesan darurat, QC, dan laporan harian</small>
+                                <small style="font-size: 0.7rem; color: var(--text-muted);">Tujuan pesan darurat, QC, dan laporan harian</small>
                             </div>
                         </div>
 
@@ -1326,9 +1365,9 @@ async def serve_dashboard(_: bool = Depends(verify_dashboard_access)):
 
                     <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 24px; padding-top: 16px; border-top: 1px solid var(--border);">
                         <div style="font-size: 0.8rem; color: var(--text-muted);">
-                            💡 <b>Vault Terpusat:</b> Untuk mengganti token atau API key baru, klik <b>🔐 Manage in Vault</b> pada provider terkait. Kredensial akan diuji otomatis sebelum diaktifkan.
+                            💡 <b>Vault Terpusat:</b> Klik <b>🔄 Ganti / Set</b> pada setiap kartu untuk menambah atau memperbarui token. Secret otomatis diuji sebelum diaktifkan.
                         </div>
-                        <button class="btn btn-primary" onclick="savePlatformConfig()" style="padding: 11px 28px; font-size: 0.92rem; font-weight: 700; background: linear-gradient(135deg, #10B981, #059669); box-shadow: 0 4px 14px rgba(16,185,129,0.3);">💾 Simpan Konfigurasi Platform</button>
+                        <button class="btn btn-primary" onclick="savePlatformConfig()" style="padding: 11px 28px; font-size: 0.92rem; font-weight: 700; background: linear-gradient(135deg, #10B981, #059669); box-shadow: 0 4px 14px rgba(16,185,129,0.3);">💾 Simpan Konfigurasi Platform (.env)</button>
                     </div>
                 </div>
             </div>
@@ -2071,16 +2110,10 @@ async def serve_dashboard(_: bool = Depends(verify_dashboard_access)):
                 const d = await res.json();
 
                 const encEl = document.getElementById('sec-vault-enc');
-                if (encEl) encEl.innerText = d.vault_encrypted ? 'ENCRYPTED ✅' : 'DISABLED ⚠️';
-
-                const intEl = document.getElementById('sec-vault-integrity');
-                if (intEl) {{
-                    intEl.innerText = d.vault_integrity === 'HEALTHY' ? 'HEALTHY ✅' : 'SAFE_MODE ⚠️';
-                    intEl.style.color = d.vault_integrity === 'HEALTHY' ? '#06B6D4' : '#EF4444';
+                if (encEl) {{
+                    encEl.innerText = d.vault_encrypted ? 'ENCRYPTED ✅' : 'DISABLED ⚠️';
+                    encEl.style.color = d.vault_encrypted ? 'var(--accent-emerald)' : 'var(--accent-rose)';
                 }}
-
-                const leakEl = document.getElementById('sec-leak-scanner');
-                if (leakEl) leakEl.innerText = d.secret_leak_scanner + ' ✅';
 
                 const bakEl = document.getElementById('sec-backup-status');
                 if (bakEl) {{
@@ -2099,64 +2132,6 @@ async def serve_dashboard(_: bool = Depends(verify_dashboard_access)):
                 const d = await res.json();
                 const secrets = d.secrets || [];
 
-                const tbody = document.getElementById('vault-secrets-tbody');
-                if (!tbody) return;
-
-                if (secrets.length === 0) {{
-                    tbody.innerHTML = '<tr><td colspan="6" style="text-align:center; padding:24px; color:var(--text-muted);">Belum ada kredensial yang tersimpan di DPAPI Vault. Klik "Ganti / Tambah Secret" di atas untuk menambahkan.</td></tr>';
-                    return;
-                }}
-
-                tbody.innerHTML = secrets.map(s => {{
-                    const health = healthMap[s.name] || {{ status: s.enabled ? 'VALID' : 'DISABLED', message: s.enabled ? 'Aktif' : 'Dinonaktifkan' }};
-                    let statusColor = '#34D399';
-                    let statusBg = 'rgba(16,185,129,0.12)';
-                    let statusBorder = 'rgba(16,185,129,0.3)';
-
-                    if (health.status === 'INVALID' || health.status === 'EXPIRED') {{
-                        statusColor = '#EF4444';
-                        statusBg = 'rgba(239,68,68,0.12)';
-                        statusBorder = 'rgba(239,68,68,0.3)';
-                    }} else if (health.status === 'EXPIRING_SOON' || health.status === 'RATE_LIMITED' || health.status === 'QUOTA_EXHAUSTED') {{
-                        statusColor = '#F59E0B';
-                        statusBg = 'rgba(245,158,11,0.12)';
-                        statusBorder = 'rgba(245,158,11,0.3)';
-                    }} else if (health.status === 'DISABLED') {{
-                        statusColor = '#94A3B8';
-                        statusBg = 'rgba(148,163,184,0.12)';
-                        statusBorder = 'rgba(148,163,184,0.3)';
-                    }}
-
-                    return `
-                    <tr>
-                        <td>
-                            <b style="color:var(--text-main); font-size:0.85rem;">${{s.name}}</b>
-                            <div style="font-size:0.72rem; color:var(--text-muted);">Updated: ${{s.updated_at ? s.updated_at.slice(0,19).replace('T',' ') : '-'}}</div>
-                        </td>
-                        <td><span class="brand-badge">${{s.provider || 'SYSTEM'}}</span></td>
-                        <td><code style="color:#60A5FA; font-family:monospace;">${{s.fingerprint || '••••••••'}}</code></td>
-                        <td>
-                            <span class="status-indicator-badge" style="color:${{statusColor}}; background:${{statusBg}}; border:1px solid ${{statusBorder}};">
-                                <span class="pulse-dot" style="background:${{statusColor}};"></span> ${{health.status}}
-                            </span>
-                            <div style="font-size:0.7rem; color:var(--text-muted); margin-top:2px;">${{health.message || ''}}</div>
-                        </td>
-                        <td style="font-size:0.78rem; color:var(--text-muted);">${{s.expires_at || 'Tidak ada batas'}}</td>
-                        <td>
-                            <div style="display:flex; gap:6px;">
-                                <button class="btn btn-outline" style="font-size:0.72rem; padding:4px 8px;" onclick="testVaultSecret('${{s.name}}')" title="Uji Koneksi">🔍 Test</button>
-                                <button class="btn btn-outline" style="font-size:0.72rem; padding:4px 8px; border-color:var(--accent-indigo); color:#818cf8;" onclick="openReplaceSecretModal('${{s.name}}', '${{s.provider || ''}}')" title="Ganti Secret Aman">🔄 Ganti</button>
-                                ${{s.enabled ? 
-                                    `<button class="btn btn-outline" style="font-size:0.72rem; padding:4px 8px; border-color:var(--accent-amber); color:var(--accent-amber);" onclick="disableVaultSecret('${{s.name}}')" title="Nonaktifkan">⏸️</button>` : 
-                                    `<button class="btn btn-outline" style="font-size:0.72rem; padding:4px 8px; border-color:var(--accent-emerald); color:var(--accent-emerald);" onclick="enableVaultSecret('${{s.name}}')" title="Aktifkan">▶️</button>`
-                                }}
-                                <button class="btn btn-outline" style="font-size:0.72rem; padding:4px 8px; border-color:var(--accent-rose); color:var(--accent-rose);" onclick="deleteVaultSecret('${{s.name}}')" title="Hapus Permanen">🗑️</button>
-                            </div>
-                        </td>
-                    </tr>
-                    `;
-                }}).join('');
-
                 updatePlatformCardBadges(healthMap, secrets);
             }} catch (e) {{
                 console.error('Fetch vault secrets error:', e);
@@ -2164,14 +2139,19 @@ async def serve_dashboard(_: bool = Depends(verify_dashboard_access)):
         }}
 
         function openReplaceSecretModal(keyName = '', provider = '') {{
-            document.getElementById('replace-sec-name').value = keyName;
-            document.getElementById('replace-sec-val').value = '';
-            document.getElementById('modal-replace-secret').style.display = 'flex';
+            const nameEl = document.getElementById('replace-sec-name');
+            const valEl = document.getElementById('replace-sec-val');
+            if (nameEl) nameEl.value = keyName;
+            if (valEl) valEl.value = '';
+            const modal = document.getElementById('modal-replace-secret');
+            if (modal) modal.style.display = 'flex';
         }}
 
         function closeReplaceSecretModal() {{
-            document.getElementById('replace-sec-val').value = '';
-            document.getElementById('modal-replace-secret').style.display = 'none';
+            const valEl = document.getElementById('replace-sec-val');
+            if (valEl) valEl.value = '';
+            const modal = document.getElementById('modal-replace-secret');
+            if (modal) modal.style.display = 'none';
         }}
 
         async function submitAtomicReplace() {{
@@ -2242,24 +2222,30 @@ async def serve_dashboard(_: bool = Depends(verify_dashboard_access)):
             }}
         }}
 
-        async function disableVaultSecret(name) {{
-            if (!confirm('Nonaktifkan secret ' + name + ' dari vault?')) return;
+        async function toggleVaultSecretEnabled(name, isCurrentlyEnabled) {{
+            const action = isCurrentlyEnabled ? 'disable' : 'enable';
+            const actionText = isCurrentlyEnabled ? 'Nonaktifkan' : 'Aktifkan';
+            if (!confirm(`${{actionText}} kredensial "${{name}}" di DPAPI Vault?`)) return;
             try {{
-                const res = await fetch('/api/vault/secret/disable', {{
+                const res = await fetch(`/api/vault/secret/${{action}}`, {{
                     method: 'POST',
                     headers: {{ 'Content-Type': 'application/json' }},
                     body: JSON.stringify({{ name: name }})
                 }});
                 const d = await res.json();
-                showToast(d.message);
+                showToast((d.success ? '🟢 ' : '🔴 ') + (d.message || 'Status vault diperbarui'));
                 fetchVaultStatus();
             }} catch (e) {{
                 showToast('🔴 Eror: ' + e.message);
             }}
         }}
 
+        async function disableVaultSecret(name) {{
+            await toggleVaultSecretEnabled(name, true);
+        }}
+
         async function enableVaultSecret(name) {{
-            openReplaceSecretModal(name, '');
+            await toggleVaultSecretEnabled(name, false);
         }}
 
         async function deleteVaultSecret(name) {{
@@ -2376,37 +2362,165 @@ async def serve_dashboard(_: bool = Depends(verify_dashboard_access)):
                 secMap[s.name] = s;
             }});
 
-            const getStatusObj = (keys) => {{
-                for (const k of keys) {{
-                    if (healthMap && healthMap[k]) return healthMap[k];
-                    if (secMap[k]) return {{ status: secMap[k].enabled ? 'VALID' : 'DISABLED', message: '' }};
-                }}
-                return {{ status: 'NOT_CONFIGURED', message: 'Belum diatur di Vault' }};
-            }};
+            const cardConfigs = [
+                {{ id: 'gemini', keys: ['GEMINI_PRIMARY_API_KEY', 'GEMINI_API_KEY', 'gemini_api_key'], defaultKey: 'GEMINI_PRIMARY_API_KEY' }},
+                {{ id: 'gemini-2', keys: ['GEMINI_BACKUP_API_KEY', 'GEMINI_API_KEY_2', 'gemini_api_key_2'], defaultKey: 'GEMINI_BACKUP_API_KEY' }},
+                {{ id: 'xai', keys: ['XAI_API_KEY', 'xai_api_key'], defaultKey: 'XAI_API_KEY' }},
+                {{ id: 'fb', keys: ['META_SYSTEM_USER_TOKEN', 'FB_PAGE_ACCESS_TOKEN', 'fb_page_access_token'], defaultKey: 'META_SYSTEM_USER_TOKEN' }},
+                {{ id: 'ig', keys: ['META_SYSTEM_USER_TOKEN', 'INSTAGRAM_ACCESS_TOKEN', 'instagram_access_token'], defaultKey: 'META_SYSTEM_USER_TOKEN' }},
+                {{ id: 'threads', keys: ['THREADS_ACCESS_TOKEN', 'threads_access_token'], defaultKey: 'THREADS_ACCESS_TOKEN' }},
+                {{ id: 'telegram', keys: ['TELEGRAM_BOT_TOKEN', 'telegram_bot_token'], defaultKey: 'TELEGRAM_BOT_TOKEN' }}
+            ];
 
-            const renderBadge = (elementId, statusObj) => {{
-                const el = document.getElementById(elementId);
-                if (!el) return;
-                const st = (statusObj.status || 'NOT_CONFIGURED').toUpperCase();
-                if (st === 'VALID') {{
-                    el.innerHTML = '<span style="color:#10B981; font-weight:700;">● VALID ✅</span>';
-                }} else if (st === 'RATE_LIMITED' || st === 'QUOTA_EXHAUSTED' || st === 'EXPIRING_SOON') {{
-                    el.innerHTML = `<span style="color:#F59E0B; font-weight:700;">● ${{st}} 🟡</span>`;
-                }} else if (st === 'INVALID' || st === 'EXPIRED') {{
-                    el.innerHTML = '<span style="color:#EF4444; font-weight:700;">● INVALID 🔴</span>';
-                }} else if (st === 'DISABLED') {{
-                    el.innerHTML = '<span style="color:#94A3B8; font-weight:700;">● DISABLED ⏸️</span>';
+            let healthyCount = 0;
+            let totalConfigured = 0;
+            let invalidCount = 0;
+
+            cardConfigs.forEach(cfg => {{
+                let matchedSec = null;
+                let matchedHealth = null;
+                let matchedKey = cfg.defaultKey;
+
+                for (const k of cfg.keys) {{
+                    if (secMap[k]) {{
+                        matchedSec = secMap[k];
+                        matchedKey = k;
+                        break;
+                    }}
+                }}
+
+                for (const k of cfg.keys) {{
+                    if (healthMap && healthMap[k]) {{
+                        matchedHealth = healthMap[k];
+                        break;
+                    }}
+                }}
+
+                let status = 'NOT_CONFIGURED';
+                let statusColor = 'var(--text-muted)';
+                let statusBg = 'rgba(148,163,184,0.1)';
+                let statusBorder = 'rgba(148,163,184,0.2)';
+                let icon = '⚪';
+
+                if (matchedSec) {{
+                    totalConfigured++;
+                    if (!matchedSec.enabled) {{
+                        status = 'DISABLED';
+                        statusColor = '#94A3B8';
+                        statusBg = 'rgba(148,163,184,0.12)';
+                        statusBorder = 'rgba(148,163,184,0.3)';
+                        icon = '⏸️';
+                    }} else if (matchedHealth) {{
+                        status = (matchedHealth.status || 'VALID').toUpperCase();
+                        if (status === 'VALID') {{
+                            healthyCount++;
+                            statusColor = '#10B981';
+                            statusBg = 'rgba(16,185,129,0.12)';
+                            statusBorder = 'rgba(16,185,129,0.3)';
+                            icon = '✅';
+                        }} else if (status === 'RATE_LIMITED' || status === 'QUOTA_EXHAUSTED' || status === 'EXPIRING_SOON') {{
+                            healthyCount++;
+                            statusColor = '#F59E0B';
+                            statusBg = 'rgba(245,158,11,0.12)';
+                            statusBorder = 'rgba(245,158,11,0.3)';
+                            icon = '🟡';
+                        }} else if (status === 'INVALID' || status === 'EXPIRED') {{
+                            invalidCount++;
+                            statusColor = '#EF4444';
+                            statusBg = 'rgba(239,68,68,0.12)';
+                            statusBorder = 'rgba(239,68,68,0.3)';
+                            icon = '🔴';
+                        }}
+                    }} else {{
+                        healthyCount++;
+                        status = 'VALID';
+                        statusColor = '#10B981';
+                        statusBg = 'rgba(16,185,129,0.12)';
+                        statusBorder = 'rgba(16,185,129,0.3)';
+                        icon = '✅';
+                    }}
+                }}
+
+                // Update Status Badge
+                const statusBadgeEl = document.getElementById(`ref-status-${{cfg.id}}`);
+                if (statusBadgeEl) {{
+                    statusBadgeEl.innerHTML = `<span style="display:inline-flex; align-items:center; gap:6px; padding:4px 10px; border-radius:8px; font-size:0.75rem; font-weight:700; color:${{statusColor}}; background:${{statusBg}}; border:1px solid ${{statusBorder}};">${{icon}} ${{status}}</span>`;
+                }}
+
+                // Update Fingerprint
+                const fpEl = document.getElementById(`fp-${{cfg.id}}`);
+                if (fpEl) {{
+                    fpEl.innerText = matchedSec ? (matchedSec.fingerprint || '••••••••') : '•••••••• (Belum Didaftarkan)';
+                    fpEl.style.color = matchedSec ? '#60A5FA' : 'var(--text-muted)';
+                }}
+
+                // Update Last Tested
+                const testedEl = document.getElementById(`tested-${{cfg.id}}`);
+                if (testedEl) {{
+                    if (matchedHealth && matchedHealth.latency_ms !== undefined) {{
+                        testedEl.innerText = `${{matchedHealth.latency_ms}}ms (${{matchedHealth.status}})`;
+                    }} else if (matchedHealth && matchedHealth.last_checked) {{
+                        testedEl.innerText = matchedHealth.last_checked.slice(11, 19);
+                    }} else if (matchedSec) {{
+                        testedEl.innerText = 'Tersedia di Vault';
+                    }} else {{
+                        testedEl.innerText = '-';
+                    }}
+                }}
+
+                // Update Updated timestamp
+                const updatedEl = document.getElementById(`updated-${{cfg.id}}`);
+                if (updatedEl) {{
+                    updatedEl.innerText = matchedSec && matchedSec.updated_at ? matchedSec.updated_at.slice(0, 19).replace('T', ' ') : '-';
+                }}
+
+                // Update Expiration
+                const expiresEl = document.getElementById(`expires-${{cfg.id}}`);
+                if (expiresEl) {{
+                    expiresEl.innerText = matchedSec && matchedSec.expires_at ? matchedSec.expires_at : 'Tidak ada batas';
+                }}
+
+                // Update Toggle Button
+                const toggleBtn = document.getElementById(`btn-toggle-${{cfg.id}}`);
+                if (toggleBtn) {{
+                    if (matchedSec) {{
+                        toggleBtn.style.display = 'inline-flex';
+                        toggleBtn.innerText = matchedSec.enabled ? '⏸️ Disable' : '▶️ Enable';
+                        toggleBtn.className = matchedSec.enabled ? 'btn btn-outline' : 'btn btn-outline';
+                        toggleBtn.style.borderColor = matchedSec.enabled ? 'var(--accent-amber)' : 'var(--accent-emerald)';
+                        toggleBtn.style.color = matchedSec.enabled ? 'var(--accent-amber)' : 'var(--accent-emerald)';
+                        toggleBtn.onclick = () => toggleVaultSecretEnabled(matchedSec.name, matchedSec.enabled);
+                    }} else {{
+                        toggleBtn.style.display = 'none';
+                    }}
+                }}
+            }});
+
+            // Update Top Security Summary KPI
+            const healthSummaryEl = document.getElementById('sec-vault-health');
+            if (healthSummaryEl) {{
+                if (invalidCount > 0) {{
+                    healthSummaryEl.innerText = `WARNING (${{invalidCount}} Degraded) ⚠️`;
+                    healthSummaryEl.style.color = 'var(--accent-rose)';
+                }} else if (totalConfigured > 0) {{
+                    healthSummaryEl.innerText = `HEALTHY (${{healthyCount}}/${{totalConfigured}}) ✅`;
+                    healthSummaryEl.style.color = 'var(--accent-emerald)';
                 }} else {{
-                    el.innerHTML = '<span style="color:var(--text-muted); font-weight:600;">● NOT CONFIGURED ⚪</span>';
+                    healthSummaryEl.innerText = 'NO SECRETS ⚪';
+                    healthSummaryEl.style.color = 'var(--text-muted)';
                 }}
-            }};
+            }}
 
-            renderBadge('ref-status-gemini', getStatusObj(['GEMINI_PRIMARY_API_KEY', 'GEMINI_API_KEY', 'gemini_api_key']));
-            renderBadge('ref-status-gemini-2', getStatusObj(['GEMINI_BACKUP_API_KEY', 'GEMINI_API_KEY_2', 'gemini_api_key_2']));
-            renderBadge('ref-status-xai', getStatusObj(['XAI_API_KEY', 'xai_api_key']));
-            renderBadge('ref-status-fb', getStatusObj(['META_SYSTEM_USER_TOKEN', 'FB_PAGE_ACCESS_TOKEN', 'fb_page_access_token']));
-            renderBadge('ref-status-threads', getStatusObj(['THREADS_ACCESS_TOKEN', 'threads_access_token']));
-            renderBadge('ref-status-telegram', getStatusObj(['TELEGRAM_BOT_TOKEN', 'telegram_bot_token']));
+            const issuesSummaryEl = document.getElementById('sec-vault-issues');
+            if (issuesSummaryEl) {{
+                if (invalidCount > 0) {{
+                    issuesSummaryEl.innerText = `${{invalidCount}} ISSUES DETECTED ⚠️`;
+                    issuesSummaryEl.style.color = 'var(--accent-rose)';
+                }} else {{
+                    issuesSummaryEl.innerText = '0 ISSUES (CLEAN) ✅';
+                    issuesSummaryEl.style.color = 'var(--accent-emerald)';
+                }}
+            }}
         }}
 
         async function fetchEnvConfig(showToastMsg = false) {{
