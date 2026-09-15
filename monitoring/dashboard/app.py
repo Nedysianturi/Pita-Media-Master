@@ -3531,25 +3531,6 @@ async def serve_dashboard(_: bool = Depends(verify_dashboard_access)):
                 if (b) {{ b.disabled = true; b.style.opacity = '0.6'; }}
             }});
 
-            // Simulated step transition timer for instant UX feedback
-            let progress = 15;
-            const stageTimer = setInterval(() => {{
-                if (progress < 85) {{
-                    progress += 10;
-                    if (progressPct) progressPct.innerText = progress + '%';
-                    if (progressBar) progressBar.style.width = progress + '%';
-                    if (progressStep) {{
-                        if (progress >= 30 && progress < 55) {{
-                            progressStep.innerHTML = '🧠 <b>Tahap 2/4:</b> AI Multi-Model Brainstorming & Naskah Narasi...';
-                        }} else if (progress >= 55 && progress < 75) {{
-                            progressStep.innerHTML = '🎨 <b>Tahap 3/4:</b> Rendering Visual Grafis & Komposisi Slide...';
-                        }} else if (progress >= 75) {{
-                            progressStep.innerHTML = '🔍 <b>Tahap 4/4:</b> Quality Control & Validasi Kualitas Konten...';
-                        }}
-                    }}
-                }}
-            }}, 1200);
-
             try {{
                 const res = await fetch('/api/studio/trigger', {{
                     method: 'POST',
@@ -3566,40 +3547,97 @@ async def serve_dashboard(_: bool = Depends(verify_dashboard_access)):
                     fetchContent();
                     pollStats();
 
-                    // Poll every 2 seconds until completed
+                    // Real dynamic polling tied to the actual Job ID
                     if (studioPollTimer) clearInterval(studioPollTimer);
                     let pollCount = 0;
                     studioPollTimer = setInterval(async () => {{
                         pollCount++;
-                        await fetchQueue();
-                        await fetchContent();
-                        await pollStats();
+                        try {{
+                            const jobsRes = await fetch('/api/jobs');
+                            const jobsData = await jobsRes.json();
+                            const currentJob = (jobsData.jobs || []).find(j => j.id === d.job_id);
 
-                        if (pollCount > 15) {{
+                            fetchQueue();
+                            fetchContent();
+                            pollStats();
+
+                            if (currentJob) {{
+                                const st = currentJob.status;
+                                if (st === 'PENDING') {{
+                                    if (progressPct) progressPct.innerText = '20%';
+                                    if (progressBar) progressBar.style.width = '20%';
+                                    if (progressStep) progressStep.innerHTML = '🤖 <b>Tahap 1/4:</b> Menunggu giliran di Antrean SQLite WAL...';
+                                }} else if (st === 'IN_IDEATOR') {{
+                                    if (progressPct) progressPct.innerText = '40%';
+                                    if (progressBar) progressBar.style.width = '40%';
+                                    if (progressStep) progressStep.innerHTML = '🧠 <b>Tahap 2/4:</b> AI Multi-Model Brainstorming Ide Narasi...';
+                                }} else if (st === 'IN_CREATOR' || st === 'PROCESSING' || st === 'RUNNING') {{
+                                    if (progressPct) progressPct.innerText = '65%';
+                                    if (progressBar) progressBar.style.width = '65%';
+                                    if (progressStep) progressStep.innerHTML = '🎨 <b>Tahap 3/4:</b> AI Copywriting Naskah & Rendering Media...';
+                                }} else if (st === 'IN_REVIEW') {{
+                                    if (progressPct) progressPct.innerText = '85%';
+                                    if (progressBar) progressBar.style.width = '85%';
+                                    if (progressStep) progressStep.innerHTML = '🔍 <b>Tahap 4/4:</b> Quality Control & Validasi Konten...';
+                                }} else if (st === 'COMPLETED') {{
+                                    clearInterval(studioPollTimer);
+                                    if (progressPct) progressPct.innerText = '100%';
+                                    if (progressBar) {{
+                                        progressBar.style.width = '100%';
+                                        progressBar.style.background = 'linear-gradient(90deg, #10B981, #059669)';
+                                    }}
+                                    if (progressStep) progressStep.innerHTML = '🟢 <b>Selesai!</b> Konten berhasil dirakit. Lihat hasilnya di Galeri Aset di bawah!';
+                                    showToast(`🎉 Konten #${{pilar}} selesai dibuat! Silakan cek Galeri Aset.`);
+                                    fetchContent();
+                                    fetchQueue();
+                                    fetchQC();
+                                    fetchReceipts();
+                                    pollStats();
+                                }} else if (st === 'FAILED') {{
+                                    clearInterval(studioPollTimer);
+                                    if (progressPct) progressPct.innerText = 'GAGAL';
+                                    if (progressBar) {{
+                                        progressBar.style.width = '100%';
+                                        progressBar.style.background = '#EF4444';
+                                    }}
+                                    if (progressStep) progressStep.innerHTML = `🔴 <b>Gagal:</b> ${{currentJob.error_message || 'Terjadi kesalahan pemrosesan'}}`;
+                                    showToast(`🔴 Kreasi #${{pilar}} gagal: ${{currentJob.error_message || ''}}`);
+                                    fetchQueue();
+                                }}
+                            }}
+                        }} catch (err) {{
+                            console.error('Job polling error:', err);
+                        }}
+
+                        if (pollCount > 60) {{
                             clearInterval(studioPollTimer);
                         }}
                     }}, 2000);
-
-                    // Set to 100% completed
-                    setTimeout(() => {{
-                        clearInterval(stageTimer);
-                        if (progressPct) progressPct.innerText = '100%';
-                        if (progressBar) {{
-                            progressBar.style.width = '100%';
-                            progressBar.style.background = 'linear-gradient(90deg, #10B981, #059669)';
-                        }}
-                        if (progressStep) progressStep.innerHTML = '🟢 <b>Selesai!</b> Konten berhasil dirakit dan tersimpan di Galeri.';
-                        showToast(`🎉 Konten #${{pilar}} selesai dibuat! Silakan cek Galeri Aset.`);
-                        fetchContent();
-                        fetchQueue();
-                        fetchReceipts();
-                        pollStats();
-                    }}, 2500);
                 }} else {{
+                    if (progressPct) progressPct.innerText = 'ERROR';
+                    if (progressBar) {{
+                        progressBar.style.width = '100%';
+                        progressBar.style.background = '#EF4444';
+                    }}
+                    if (progressStep) progressStep.innerHTML = '🔴 <b>Gagal:</b> ' + (d.detail || d.message || 'Gagal memicu studio');
                     showToast('🔴 Eror: ' + (d.detail || d.message || 'Gagal memicu studio'));
                 }}
             }} catch (e) {{
+                if (progressPct) progressPct.innerText = 'ERR';
+                if (progressBar) {{
+                    progressBar.style.width = '100%';
+                    progressBar.style.background = '#EF4444';
+                }}
+                if (progressStep) progressStep.innerHTML = '🔴 <b>Eror Jaringan:</b> ' + e.message;
                 showToast('🔴 Eror jaringan: ' + e.message);
+            }} finally {{
+                // Re-enable buttons
+                setTimeout(() => {{
+                    genBtns.forEach(id => {{
+                        const b = document.getElementById(id);
+                        if (b) {{ b.disabled = false; b.style.opacity = '1'; }}
+                    }});
+                }}, 1000);
             }}
         }}
 
