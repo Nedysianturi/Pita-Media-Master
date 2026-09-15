@@ -50,6 +50,7 @@ class Ideator:
 
         from core.learning.knowledge_base import knowledge_base
         from core.learning.strategy_scoring import strategy_scoring
+        from core.calendar import event_intelligence_engine
 
         # Ambil insight aktif dari Knowledge Base
         active_knowledge = knowledge_base.get_active_knowledge(min_confidence=0.6)
@@ -58,11 +59,21 @@ class Ideator:
             bullet_points = "\n".join(f"- {k['category'].upper()}: {k['insight_text']}" for k in active_knowledge[:3])
             knowledge_context = f"\nPelajari Pola Unggul Historis (Gunakan wawasan ini):\n{bullet_points}\n"
 
+        # Ambil konteks event & momen spesial jika ada
+        event_context = ""
+        try:
+            evt_ctx = await event_intelligence_engine.get_today_event_context(target_pillar=pilar)
+            if evt_ctx and evt_ctx.event_detected:
+                event_context = f"\n{evt_ctx.to_prompt_enrichment()}\n"
+        except Exception:
+            event_context = ""
+
         prompt = f"""
         Rencanakan satu ide konten unggulan untuk pilar: '{pilar}'.
         
         {exploration_note}
         {knowledge_context}
+        {event_context}
         Topik yang sudah dibuat baru-baru ini (HINDARI REPETISI INI):
         [{recent_context}]
         

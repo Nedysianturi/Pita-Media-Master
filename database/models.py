@@ -431,10 +431,104 @@ class AutonomyLog(Base):
     created_at = Column(DateTime, default=utc_now, nullable=False, index=True)
 
 
+# --- CALENDAR & EVENT INTELLIGENCE MODELS (ADDITIVE) ---
+
+class EventItem(Base):
+    __tablename__ = "events"
+
+    id = Column(String(36), primary_key=True, default=generate_uuid)
+    event_id = Column(String(100), unique=True, nullable=False, index=True)
+    event_name = Column(String(255), nullable=False)
+    event_type = Column(String(50), nullable=False, default="OFFICIAL_NATIONAL", index=True)
+    start_date = Column(String(10), nullable=False, index=True)  # Format: MM-DD or YYYY-MM-DD
+    end_date = Column(String(10), nullable=True)
+    timezone = Column(String(50), default="Asia/Jakarta")
+    country = Column(String(10), default="ID")
+    region = Column(String(50), default="National")
+    audience_scope = Column(String(100), default="General Indonesian Audience")
+    sensitivity_level = Column(String(20), default="LOW")  # LOW, MEDIUM, HIGH
+    default_relevance = Column(Float, default=85.0)
+    source = Column(String(50), default="OFFICIAL_CALENDAR")  # OFFICIAL_CALENDAR, CURATED, CUSTOM
+    verification_status = Column(String(30), default="VERIFIED")  # VERIFIED, CURATED, CUSTOM, UNVERIFIED
+    suggested_pillars = Column(JSON, nullable=False, default=list)  # e.g., ["PITA_MINI", "PITA_CERITA"]
+    tone = Column(String(150), default="Inspiratif, Bermakna & Positif")
+    visual_context = Column(Text, nullable=True)
+    avoid_guidelines = Column(JSON, nullable=True, default=list)
+    lead_days = Column(Integer, default=2)
+    notes = Column(Text, nullable=True)
+    enabled = Column(Boolean, default=True, index=True)
+    created_at = Column(DateTime, default=utc_now, nullable=False)
+    updated_at = Column(DateTime, default=utc_now, onupdate=utc_now, nullable=False)
+
+
+class EventRunCandidate(Base):
+    __tablename__ = "event_runs"
+
+    id = Column(String(36), primary_key=True, default=generate_uuid)
+    event_id = Column(String(100), ForeignKey("events.event_id"), nullable=False, index=True)
+    year = Column(Integer, nullable=False, index=True)
+    pillar = Column(String(50), nullable=False)
+    target_date = Column(String(10), nullable=False)
+    phase = Column(String(30), default="MAIN_EVENT")  # TEASER, PRE_EVENT, MAIN_EVENT, FOLLOW_UP
+    relevance_score = Column(Float, default=0.0)
+    confidence = Column(String(20), default="HIGH")
+    status = Column(String(30), default="PLANNED", index=True)  # PLANNED, SELECTED, SKIPPED, GENERATED, PUBLISHED
+    skip_reason = Column(Text, nullable=True)
+    content_id = Column(String(36), nullable=True)
+    created_at = Column(DateTime, default=utc_now, nullable=False)
+
+
+class EventPerformanceRecord(Base):
+    __tablename__ = "event_performance"
+
+    id = Column(String(36), primary_key=True, default=generate_uuid)
+    event_id = Column(String(100), nullable=False, index=True)
+    year = Column(Integer, nullable=False, index=True)
+    pillar = Column(String(50), nullable=False)
+    concept_title = Column(String(255), nullable=False)
+    concept_hash = Column(String(64), nullable=False)
+    platform = Column(String(50), default="facebook")
+    format = Column(String(30), default="video")
+    reach = Column(Integer, default=0)
+    views = Column(Integer, default=0)
+    shares = Column(Integer, default=0)
+    saves = Column(Integer, default=0)
+    engagement_rate = Column(Float, default=0.0)
+    relative_boost = Column(Float, default=1.0)
+    lesson = Column(Text, nullable=True)
+    confidence = Column(Float, default=0.85)
+    created_at = Column(DateTime, default=utc_now, nullable=False)
+
+
+class BioCampaign(Base):
+    __tablename__ = "bio_campaigns"
+
+    id = Column(String(36), primary_key=True, default=generate_uuid)
+    campaign_name = Column(String(255), nullable=False)
+    event_id = Column(String(100), nullable=True, index=True)
+    platform = Column(String(50), nullable=False, index=True)  # facebook, instagram, threads
+    default_bio = Column(Text, nullable=False)
+    previous_bio = Column(Text, nullable=True)
+    campaign_bio = Column(Text, nullable=False)
+    start_at = Column(DateTime, nullable=False)
+    end_at = Column(DateTime, nullable=False)
+    min_duration_hours = Column(Integer, default=48)
+    status = Column(String(30), default="DRAFT", index=True)  # DRAFT, SCHEDULED, ACTIVE, COMPLETED, RESTORED, RECOMMENDED_ONLY
+    capability_status = Column(String(30), default="MANUAL_ONLY")  # SUPPORTED, MANUAL_ONLY, READ_ONLY, NOT_SUPPORTED
+    applied_at = Column(DateTime, nullable=True)
+    restored_at = Column(DateTime, nullable=True)
+    error_message = Column(Text, nullable=True)
+    created_at = Column(DateTime, default=utc_now, nullable=False)
+
+
 # Index gabungan untuk query performa
 Index("idx_jobs_pilar_status", Job.pilar, Job.status)
 Index("idx_qc_content_iteration", QCRecord.content_id, QCRecord.iteration_number)
 Index("idx_receipts_content_platform", PublishingReceipt.content_id, PublishingReceipt.platform)
 Index("idx_knowledge_category_status", KnowledgeItem.category, KnowledgeItem.status)
 Index("idx_ltm_pilar_created", LongTermMemoryItem.pilar, LongTermMemoryItem.created_at)
+Index("idx_events_type_date", EventItem.event_type, EventItem.start_date)
+Index("idx_event_runs_event_year", EventRunCandidate.event_id, EventRunCandidate.year)
+Index("idx_bio_campaigns_platform_status", BioCampaign.platform, BioCampaign.status)
+
 

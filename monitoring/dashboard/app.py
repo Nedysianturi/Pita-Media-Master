@@ -859,6 +859,99 @@ async def toggle_learning_pause(payload: Dict[str, Any], _: bool = Depends(verif
     autonomy_controller.pause_learning(pause)
     return {"success": True, "is_paused": autonomy_controller.is_paused}
 
+# --- CALENDAR & EVENT INTELLIGENCE APIS ---
+@app.get("/api/calendar/events", response_class=JSONResponse)
+async def get_calendar_events_endpoint(_: bool = Depends(verify_dashboard_access)):
+    from core.calendar import event_intelligence_engine, bio_campaign_manager, event_memory
+    today_ctx = await event_intelligence_engine.get_today_event_context()
+    upcoming = await event_intelligence_engine.list_upcoming_events(days_ahead=30)
+    bio_camps = await bio_campaign_manager.list_bio_campaigns()
+    memories = await event_memory.list_recent_event_memories(limit=10)
+    return {
+        "today_event": {
+            "status": today_ctx.status,
+            "detected": today_ctx.event_detected,
+            "event_name": today_ctx.event_name or "Tidak Ada Event Spesial Hari Ini",
+            "event_id": today_ctx.event_id,
+            "phase": today_ctx.phase,
+            "relevance_score": today_ctx.relevance_score,
+            "confidence": today_ctx.confidence,
+            "sensitivity": today_ctx.sensitivity_level,
+            "suggested_pillars": today_ctx.suggested_pillars,
+            "tone": today_ctx.tone,
+            "visual_context": today_ctx.visual_context
+        },
+        "upcoming_events": upcoming,
+        "bio_campaigns": bio_camps,
+        "memories": memories
+    }
+
+@app.post("/api/calendar/custom-event", response_class=JSONResponse)
+async def add_custom_event_endpoint(payload: Dict[str, Any], _: bool = Depends(verify_dashboard_access)):
+    from database.connection import async_session_factory
+    from database.models import EventItem
+    import uuid
+
+    name = payload.get("event_name", "").strip()
+    date_str = payload.get("start_date", "").strip()
+    if not name or not date_str:
+        return JSONResponse(status_code=400, content={"success": False, "message": "Nama event dan tanggal wajib diisi."})
+
+    ev_id = f"custom_{uuid.uuid4().hex[:8]}"
+    pillars = payload.get("suggested_pillars") or ["PITA_TRANSFORMASI", "PITA_CERITA"]
+
+    async with async_session_factory() as db:
+        item = EventItem(
+            event_id=ev_id,
+            event_name=name,
+            event_type="CUSTOM_BRAND",
+            start_date=date_str,
+            suggested_pillars=pillars,
+            tone=payload.get("tone", "Inspiratif & Elegan"),
+            notes=payload.get("notes", ""),
+            source="CUSTOM",
+            verification_status="CUSTOM"
+        )
+        db.add(item)
+        await db.commit()
+
+    return {"success": True, "message": f"Custom event '{name}' berhasil didaftarkan.", "event_id": ev_id}
+
+@app.get("/api/calendar/bio-campaigns", response_class=JSONResponse)
+async def get_bio_campaigns_endpoint(_: bool = Depends(verify_dashboard_access)):
+    from core.calendar import bio_campaign_manager
+    camps = await bio_campaign_manager.list_bio_campaigns()
+    return {"bio_campaigns": camps, "capabilities": bio_campaign_manager.capabilities}
+
+@app.post("/api/calendar/bio-campaign/create", response_class=JSONResponse)
+async def create_bio_campaign_endpoint(payload: Dict[str, Any], _: bool = Depends(verify_dashboard_access)):
+    from core.calendar import bio_campaign_manager
+    from datetime import datetime, timezone, timedelta
+
+    name = payload.get("name", "Special Campaign")
+    platform = payload.get("platform", "facebook")
+    campaign_bio = payload.get("campaign_bio", "")
+    default_bio = payload.get("default_bio", "Pita Media — Estetika Visual & Mahakarya Narasi.")
+    
+    start_at = datetime.now(timezone.utc)
+    end_at = start_at + timedelta(hours=int(payload.get("duration_hours", 48)))
+
+    res = await bio_campaign_manager.create_bio_campaign(
+        campaign_name=name,
+        platform=platform,
+        campaign_bio=campaign_bio,
+        default_bio=default_bio,
+        start_at=start_at,
+        end_at=end_at,
+        event_id=payload.get("event_id")
+    )
+    return res
+
+@app.post("/api/calendar/bio-campaign/restore/{campaign_id}", response_class=JSONResponse)
+async def restore_bio_campaign_endpoint(campaign_id: str, _: bool = Depends(verify_dashboard_access)):
+    from core.calendar import bio_campaign_manager
+    return await bio_campaign_manager.restore_default_bio(campaign_id)
+
 # --- MAIN DASHBOARD HTML WITH 18 VIEWS ---
 @app.get("/", response_class=HTMLResponse)
 async def serve_dashboard(_: bool = Depends(verify_dashboard_access)):
@@ -1223,6 +1316,7 @@ async def serve_dashboard(_: bool = Depends(verify_dashboard_access)):
             
             <div class="nav-group-title">Kualitas & Optimasi</div>
             <li class="nav-item" onclick="switchTab('quality')">🛡️ Kualitas, Musik & Eksperimen</li>
+            <li class="nav-item" onclick="switchTab('calendar')">📅 Kalender & Event Spesial</li>
             
             <div class="nav-group-title">Sistem & Tata Kelola</div>
             <li class="nav-item" onclick="switchTab('system')">⚙️ Kesehatan & Pengaturan Sistem</li>
@@ -2002,6 +2096,136 @@ async def serve_dashboard(_: bool = Depends(verify_dashboard_access)):
                     <pre id="terminal-logs" style="background: #000; color: #10B981; padding: 16px; border-radius: 8px; font-size: 0.8rem; height: 350px; overflow-y: auto; margin-top: 10px;"></pre>
                 </div>
             </div>
+
+            <!-- 6. KALENDER & EVENT INTELLIGENCE (CALENDAR) -->
+            <div id="tab-calendar" class="tab-pane">
+                <div class="menu-guide-card">
+                    <div>
+                        <div class="menu-guide-title">📅 Kalender & Intelijen Event Spesial</div>
+                        <div class="menu-guide-desc">Modul cerdas pendeteksi hari besar nasional, keagamaan (secara hormat), budaya, dan momen musiman. Memberi pengayaan konteks narasi pada 4 pilar resmi tanpa mengganggu jadwal publikasi reguler.</div>
+                    </div>
+                    <div class="menu-guide-tip">
+                        💡 <b>Status Intelijen:</b> <span id="cal-today-badge" style="font-weight:700; color:#F59E0B;">Memuat status event...</span>
+                    </div>
+                </div>
+
+                <!-- Event Active Today Card -->
+                <div class="card" id="card-today-event" style="margin-bottom: 20px; border-left: 4px solid #F59E0B;">
+                    <div class="card-title" style="display:flex; justify-content:space-between; align-items:center;">
+                        <span style="display:flex; align-items:center; gap:8px;">🎯 <b>Momen / Event Hari Ini (Asia/Jakarta)</b></span>
+                        <span id="today-event-score-pill" class="pilar-pill" style="background:rgba(245,158,11,0.15); color:#FBBF24; border-color:rgba(245,158,11,0.3);">Relevansi: -</span>
+                    </div>
+                    <div id="today-event-details" style="margin-top:10px; font-size:0.86rem; color:var(--text-muted); line-height:1.6;">
+                        Memeriksa kalender hari ini...
+                    </div>
+                </div>
+
+                <div class="grid-2">
+                    <!-- Upcoming Events Table -->
+                    <div class="card">
+                        <div class="card-title" style="display:flex; justify-content:space-between; align-items:center;">
+                            <span>🗓️ <b>Jadwal Event Mendatang (14-30 Hari)</b></span>
+                            <button class="btn btn-outline" style="font-size:0.75rem; padding:4px 10px;" onclick="fetchCalendarData()">🔄 Refresh</button>
+                        </div>
+                        <div style="overflow-x: auto; margin-top: 10px;">
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th>Nama Event</th>
+                                        <th>Tanggal</th>
+                                        <th>Sisa Waktu</th>
+                                        <th>Pilar Saran</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="calendar-upcoming-tbody">
+                                    <tr><td colspan="4" style="text-align:center; color:var(--text-muted);">Memuat jadwal event...</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <!-- Add Custom Event -->
+                    <div class="card">
+                        <div class="card-title">✨ <b>Daftarkan Custom Event / Milestone Brand</b></div>
+                        <div style="font-size:0.78rem; color:var(--text-muted); margin-bottom:14px;">Tambahkan event perayaan brand, anniversary, atau campaign khusus secara aman.</div>
+                        <div class="form-group">
+                            <label class="form-label" style="font-size:0.78rem;">Nama Event:</label>
+                            <input type="text" id="cust-ev-name" class="form-control" placeholder="e.g. Pita Media 2nd Anniversary" style="font-size:0.83rem;">
+                        </div>
+                        <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px;">
+                            <div class="form-group">
+                                <label class="form-label" style="font-size:0.78rem;">Tanggal (MM-DD):</label>
+                                <input type="text" id="cust-ev-date" class="form-control" placeholder="08-01" style="font-size:0.83rem;">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label" style="font-size:0.78rem;">Pilar Utama:</label>
+                                <select id="cust-ev-pilar" class="form-control" style="font-size:0.83rem;">
+                                    <option value="PITA_TRANSFORMASI">Pita Transformasi</option>
+                                    <option value="PITA_MINI">Pita Mini</option>
+                                    <option value="PITA_CERITA" selected>Pita Cerita</option>
+                                    <option value="PITA_KREASI">Pita Kreasi</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label" style="font-size:0.78rem;">Tone Narasi & Catatan:</label>
+                            <input type="text" id="cust-ev-tone" class="form-control" placeholder="Inspiratif, Apresiatif & Reflektif" style="font-size:0.83rem;">
+                        </div>
+                        <button class="btn btn-primary" style="font-size:0.8rem; width:100%; padding:9px;" onclick="submitCustomEvent()">💾 Simpan Custom Event</button>
+                    </div>
+                </div>
+
+                <!-- Bio Campaign Manager & Memory Grid -->
+                <div class="grid-2" style="margin-top: 20px;">
+                    <!-- Bio Campaign Manager -->
+                    <div class="card">
+                        <div class="card-title" style="display:flex; justify-content:space-between; align-items:center;">
+                            <span>🏷️ <b>Manajer Bio Kampanye (Bio Campaign)</b></span>
+                            <span class="brand-badge" style="background:rgba(59,130,246,0.15); color:#60A5FA;">Min. Durasi 48 Jam</span>
+                        </div>
+                        <div style="font-size:0.78rem; color:var(--text-muted); margin-top:4px; margin-bottom:12px;">Menjaga bio akun medsos selaras dengan campaign besar dengan sistem restore/rollback aman.</div>
+                        <div style="overflow-x: auto;">
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th>Platform</th>
+                                        <th>Bio Campaign</th>
+                                        <th>Status & Kapabilitas</th>
+                                        <th>Aksi</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="bio-campaigns-tbody">
+                                    <tr><td colspan="4" style="text-align:center; color:var(--text-muted);">Memuat data kampanye bio...</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <!-- Long-Term Event Memory -->
+                    <div class="card">
+                        <div class="card-title" style="display:flex; justify-content:space-between; align-items:center;">
+                            <span>🧠 <b>Memori & Pembelajaran Event (Long-Term Memory)</b></span>
+                            <span class="pilar-pill" style="background:rgba(16,185,129,0.15); color:#34D399; border-color:rgba(16,185,129,0.3);">Learning Engine Link</span>
+                        </div>
+                        <div style="font-size:0.78rem; color:var(--text-muted); margin-top:4px; margin-bottom:12px;">Rekam jejak performa konten event tahun-tahun sebelumnya untuk mengoptimalkan strategi tahun berikutnya.</div>
+                        <div style="overflow-x: auto;">
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th>Event & Tahun</th>
+                                        <th>Pilar</th>
+                                        <th>Engagement / Boost</th>
+                                        <th>Pelajaran Kunci</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="event-memory-tbody">
+                                    <tr><td colspan="4" style="text-align:center; color:var(--text-muted);">Memuat riwayat pembelajaran event...</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
 
@@ -2189,6 +2413,7 @@ async def serve_dashboard(_: bool = Depends(verify_dashboard_access)):
                 fetchEnvConfig();
             }}
             if (tabId === 'ab_testing') fetchExperiments();
+            if (tabId === 'calendar') fetchCalendarData();
             if (tabId === 'music') fetchMusic();
             if (tabId === 'qc') fetchQC();
             if (tabId === 'storage') fetchStorage();
@@ -3800,10 +4025,151 @@ async def serve_dashboard(_: bool = Depends(verify_dashboard_access)):
             }}
         }}
 
+        // --- CALENDAR & EVENT INTELLIGENCE HANDLERS ---
+        async function fetchCalendarData() {{
+            try {{
+                const res = await fetch('/api/calendar/events');
+                const d = await res.json();
+
+                // 1. Today's Event
+                const today = d.today_event || {{}};
+                const todayBadge = document.getElementById('cal-today-badge');
+                const scorePill = document.getElementById('today-event-score-pill');
+                const detailsEl = document.getElementById('today-event-details');
+
+                if (today.detected) {{
+                    if (todayBadge) todayBadge.innerHTML = `<span style="color:#10B981;">🟢 AKTIF: ${{today.event_name}}</span>`;
+                    if (scorePill) scorePill.innerHTML = `Skor Relevansi: <b>${{today.relevance_score || 85}}/100 (${{today.confidence || 'HIGH'}})</b>`;
+                    if (detailsEl) {{
+                        detailsEl.innerHTML = `
+                            <div style="color:var(--text-main); font-weight:700; font-size:1.05rem; margin-bottom:4px;">✨ ${{today.event_name}} <span class="brand-badge">${{today.phase}}</span></div>
+                            <div><b>Nuansa & Tone:</b> ${{today.tone || 'Inspiratif'}}</div>
+                            <div><b>Konteks Visual:</b> ${{today.visual_context || 'Visual bernuansa budaya lokal yang hangat & berkelas.'}}</div>
+                            <div style="margin-top:6px;"><b>Pilar Utama yang Disarankan:</b> ${{ (today.suggested_pillars || []).map(p => `<span class="pilar-pill" style="margin-right:4px;">#${{p}}</span>`).join('') }}</div>
+                        `;
+                    }}
+                }} else {{
+                    if (todayBadge) todayBadge.innerHTML = `<span style="color:var(--text-muted);">● Tidak Ada Event Khusus (Jadwal Reguler)</span>`;
+                    if (scorePill) scorePill.innerHTML = `Relevansi: Standar`;
+                    if (detailsEl) {{
+                        detailsEl.innerHTML = `
+                            <div style="color:var(--text-muted);">Hari ini tidak ada event besar atau tanggal merah yang mendesak. Pipeline pembuatan konten berjalan dengan strategi pilar reguler evergreen.</div>
+                        `;
+                    }}
+                }}
+
+                // 2. Upcoming Events Table
+                const upTbody = document.getElementById('calendar-upcoming-tbody');
+                if (upTbody) {{
+                    const upList = d.upcoming_events || [];
+                    if (upList.length === 0) {{
+                        upTbody.innerHTML = '<tr><td colspan="4" style="text-align:center; color:var(--text-muted); padding:16px;">Tidak ada event dalam 30 hari ke depan.</td></tr>';
+                    }} else {{
+                        upTbody.innerHTML = upList.map(ev => `
+                            <tr>
+                                <td><b>${{ev.event_name}}</b><br><small style="color:var(--text-muted);">${{ev.event_type}}</small></td>
+                                <td><code>${{ev.date}}</code></td>
+                                <td><span class="pilar-pill" style="color:#FBBF24; background:rgba(245,158,11,0.12); border-color:rgba(245,158,11,0.25);">${{ev.days_left === 0 ? 'Hari Ini' : ev.days_left + ' hari lagi'}}</span></td>
+                                <td>${{(ev.suggested_pillars || []).map(p => `<span class="brand-badge" style="font-size:0.68rem;">#${{p}}</span>`).join(' ')}}</td>
+                            </tr>
+                        `).join('');
+                    }}
+                }}
+
+                // 3. Bio Campaigns Table
+                const bioTbody = document.getElementById('bio-campaigns-tbody');
+                if (bioTbody) {{
+                    const bioList = d.bio_campaigns || [];
+                    if (bioList.length === 0) {{
+                        bioTbody.innerHTML = '<tr><td colspan="4" style="text-align:center; color:var(--text-muted); padding:16px;">Belum ada kampanye bio terdaftar.</td></tr>';
+                    }} else {{
+                        bioTbody.innerHTML = bioList.map(b => `
+                            <tr>
+                                <td><b>${{b.platform.toUpperCase()}}</b></td>
+                                <td><div style="max-width:260px; font-size:0.78rem; line-height:1.4;">${{b.campaign_bio}}</div></td>
+                                <td><span class="brand-badge">${{b.status}}</span><br><small style="color:var(--text-muted); font-size:0.7rem;">${{b.capability}}</small></td>
+                                <td>
+                                    ${{b.status !== 'RESTORED' ? `<button class="btn btn-outline" style="font-size:0.72rem; padding:4px 8px;" onclick="restoreBio('${{b.id}}')">↩️ Restore</button>` : '<span style="color:var(--text-muted); font-size:0.75rem;">Dipulihkan</span>'}}
+                                </td>
+                            </tr>
+                        `).join('');
+                    }}
+                }}
+
+                // 4. Event Memory Table
+                const memTbody = document.getElementById('event-memory-tbody');
+                if (memTbody) {{
+                    const memList = d.memories || [];
+                    if (memList.length === 0) {{
+                        memTbody.innerHTML = '<tr><td colspan="4" style="text-align:center; color:var(--text-muted); padding:16px;">Memori event baru akan otomatis terakumulasi seiring berjalannya publikasi konten event.</td></tr>';
+                    }} else {{
+                        memTbody.innerHTML = memList.map(m => `
+                            <tr>
+                                <td><b>${{m.event_id}}</b> (${{m.year}})</td>
+                                <td><span class="pilar-pill">#${{m.pillar}}</span></td>
+                                <td><b style="color:var(--accent-emerald);">${{m.boost}}</b> (${{m.engagement_rate}})</td>
+                                <td style="font-size:0.75rem; color:var(--text-muted);">${{m.lesson}}</td>
+                            </tr>
+                        `).join('');
+                    }}
+                }}
+            }} catch (e) {{
+                console.error('Error fetching calendar data:', e);
+            }}
+        }}
+
+        async function submitCustomEvent() {{
+            const name = document.getElementById('cust-ev-name').value.trim();
+            const dateStr = document.getElementById('cust-ev-date').value.trim();
+            const pilar = document.getElementById('cust-ev-pilar').value;
+            const tone = document.getElementById('cust-ev-tone').value.trim();
+
+            if (!name || !dateStr) {{
+                showToast('⚠️ Nama event dan tanggal (MM-DD) wajib diisi.');
+                return;
+            }}
+
+            try {{
+                const res = await fetch('/api/calendar/custom-event', {{
+                    method: 'POST',
+                    headers: {{ 'Content-Type': 'application/json' }},
+                    body: JSON.stringify({{
+                        event_name: name,
+                        start_date: dateStr,
+                        suggested_pillars: [pilar],
+                        tone: tone || 'Inspiratif'
+                    }})
+                }});
+                const d = await res.json();
+                if (d.success) {{
+                    showToast('🟢 ' + d.message);
+                    document.getElementById('cust-ev-name').value = '';
+                    document.getElementById('cust-ev-date').value = '';
+                    fetchCalendarData();
+                }} else {{
+                    showToast('🔴 Gagal: ' + (d.message || 'Eror'));
+                }}
+            }} catch (e) {{
+                showToast('🔴 Eror: ' + e.message);
+            }}
+        }}
+
+        async function restoreBio(campId) {{
+            try {{
+                const res = await fetch('/api/calendar/bio-campaign/restore/' + campId, {{ method: 'POST' }});
+                const d = await res.json();
+                showToast(d.success ? '🟢 ' + d.message : '🔴 ' + d.message);
+                fetchCalendarData();
+            }} catch (e) {{
+                showToast('🔴 Eror: ' + e.message);
+            }}
+        }}
+
         pollStats();
         fetchVaultStatus();
         fetchQueue();
         fetchContent();
+        fetchCalendarData();
         setInterval(pollStats, 5000);
     </script>
 </body>
