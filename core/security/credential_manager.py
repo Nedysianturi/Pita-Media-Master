@@ -188,7 +188,7 @@ class CentralCredentialManager:
         Supports both direct secret lookup (returns string) and service dictionary lookup (returns dict).
         """
         key_clean = key.strip()
-        service_names = ["gemini", "gemini_2", "google", "xai", "grok", "facebook", "fb", "instagram", "ig", "threads", "telegram"]
+        service_names = ["gemini", "gemini_2", "google", "xai", "grok", "openrouter", "facebook", "fb", "instagram", "ig", "threads", "telegram"]
 
         # 1. If querying service name, check for service credentials dictionary
         if key_clean.lower() in service_names:
@@ -307,6 +307,14 @@ class CentralCredentialManager:
                 "env_fallback": "GEMINI_API_KEY_2",
                 "category": "AI Provider",
                 "description": "API Key Cadangan jika kuota API Key Utama habis / 429"
+            },
+            {
+                "service_id": "openrouter",
+                "display_name": "OpenRouter (Tier 2 Multi-Model Gateway)",
+                "primary_key": "api_key",
+                "env_fallback": "OPENROUTER_API_KEY",
+                "category": "AI Provider",
+                "description": "Multi-Model Gateway API Key untuk OpenAI, Claude, DeepSeek via OpenRouter"
             },
             {
                 "service_id": "xai",
@@ -444,7 +452,15 @@ class CentralCredentialManager:
             except Exception as e:
                 return {"status": "NEEDS_ATTENTION", "message": f"Network error: {str(e)}"}
 
-        # 2. XAI / GROK
+        # 2. OPENROUTER
+        elif "openrouter" in pname:
+            token = custom_token or self.get_credential("openrouter_api_key", "OPENROUTER_API_KEY") or self.secret_store.get_secret("OPENROUTER_API_KEY")
+            if not token:
+                return {"status": "NOT_CONFIGURED", "message": "OPENROUTER_API_KEY belum diatur di Vault."}
+            from providers.openrouter_provider import openrouter_provider
+            return openrouter_provider.test_connection(custom_token=token)
+
+        # 3. XAI / GROK
         elif "grok" in pname or "xai" in pname:
             token = custom_token or self.get_credential("xai_api_key", "XAI_API_KEY")
             if not token:

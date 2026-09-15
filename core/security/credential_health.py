@@ -220,6 +220,68 @@ class CredentialHealthEngine:
                 "message": f"Gagal menghubungi Telegram API: {str(e)}"
             }
 
+    async def test_openrouter_credential(self, api_key: Optional[str] = None) -> Dict[str, Any]:
+        """Tests OpenRouter API Key validity without logging key."""
+        key = api_key or self.secret_store.get_secret("OPENROUTER_API_KEY")
+        if not key:
+            return {"status": CredentialStatus.NOT_CONFIGURED.value, "message": "OPENROUTER_API_KEY belum diatur di Vault."}
+
+        url = "https://openrouter.ai/api/v1/models"
+        headers = {
+            "Authorization": f"Bearer {key}",
+            "HTTP-Referer": "https://pitamedia.localhost",
+            "X-Title": "Pita Media Health Check"
+        }
+        start_t = time.perf_counter()
+        try:
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                res = await client.get(url, headers=headers)
+                latency = int((time.perf_counter() - start_t) * 1000)
+
+                if res.status_code == 200:
+                    d = res.json()
+                    models_count = len(d.get("data", []))
+                    return {
+                        "status": CredentialStatus.VALID.value,
+                        "latency_ms": latency,
+                        "message": f"Koneksi OpenRouter aktif ({models_count} model tersedia).",
+                        "provider": "openrouter"
+                    }
+                elif res.status_code == 429:
+                    return {
+                        "status": CredentialStatus.RATE_LIMITED.value,
+                        "latency_ms": latency,
+                        "message": "OpenRouter terhubung (Rate limit sementara/429).",
+                        "provider": "openrouter"
+                    }
+                elif res.status_code == 402:
+                    return {
+                        "status": CredentialStatus.QUOTA_EXHAUSTED.value,
+                        "latency_ms": latency,
+                        "message": "Saldo kredit OpenRouter tidak mencukupi (HTTP 402).",
+                        "provider": "openrouter"
+                    }
+                elif res.status_code in [401, 403]:
+                    return {
+                        "status": CredentialStatus.INVALID.value,
+                        "latency_ms": latency,
+                        "message": "OPENROUTER_API_KEY tidak valid atau ditolak oleh OpenRouter.",
+                        "provider": "openrouter"
+                    }
+                else:
+                    return {
+                        "status": CredentialStatus.UNKNOWN.value,
+                        "latency_ms": latency,
+                        "message": f"OpenRouter HTTP {res.status_code}",
+                        "provider": "openrouter"
+                    }
+        except Exception as e:
+            return {
+                "status": CredentialStatus.UNKNOWN.value,
+                "message": f"Gagal menghubungi server OpenRouter: {str(e)}",
+                "provider": "openrouter"
+            }
+
     async def run_comprehensive_credential_check(self) -> Dict[str, Any]:
         """Runs health tests across all configured credentials."""
         results = {}
@@ -234,19 +296,25 @@ class CredentialHealthEngine:
         else:
             results["gemini_backup"] = {"status": CredentialStatus.NOT_CONFIGURED.value, "message": "Key cadangan belum diatur."}
 
-        # 2. Meta
+        # 2. OpenRouter
+        if self.secret_store.has_secret("OPENROUTER_API_KEY"):
+            results["openrouter"] = await self.test_openrouter_credential()
+        else:
+            results["openrouter"] = {"status": CredentialStatus.NOT_CONFIGURED.value, "message": "OPENROUTER_API_KEY belum diatur."}
+
+        # 3. Meta
         results["meta"] = await self.test_meta_credential()
 
-        # 3. Telegram
+        # 4. Telegram
         results["telegram"] = await self.test_telegram_credential()
 
-        # 4. Threads
+        # 5. Threads
         if self.secret_store.has_secret("THREADS_ACCESS_TOKEN"):
             results["threads"] = {"status": CredentialStatus.VALID_EXPIRY_UNKNOWN.value, "message": "Threads Token terkonfigurasi di Vault."}
         else:
             results["threads"] = {"status": CredentialStatus.NOT_CONFIGURED.value, "message": "Threads Token belum diatur."}
 
-        # 5. Grok / xAI
+        # 6. Grok / xAI
         if self.secret_store.has_secret("XAI_API_KEY"):
             results["xai"] = {"status": CredentialStatus.VALID_EXPIRY_UNKNOWN.value, "message": "xAI API Key terkonfigurasi di Vault."}
         else:

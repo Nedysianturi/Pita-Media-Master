@@ -14,6 +14,7 @@ from typing import Dict, Any, List, Optional
 from providers.base_provider import BaseAIProvider, AICapability
 from providers.gemini_provider import gemini_provider
 from providers.xai_provider import xai_provider
+from providers.openrouter_provider import openrouter_provider
 from core.security.secret_store import secret_store
 
 logger = logging.getLogger("pita.providers.registry")
@@ -118,6 +119,7 @@ class ProviderRegistry:
 
     def _register_defaults(self):
         self._providers["gemini"] = gemini_provider
+        self._providers["openrouter"] = openrouter_provider
         self._providers["xai"] = xai_provider
 
     def register_provider(self, provider: BaseAIProvider):
@@ -178,7 +180,7 @@ class ProviderRegistry:
         CUSTOM_PROVIDERS_FILE.parent.mkdir(parents=True, exist_ok=True)
         custom_data = []
         for pid, p in self._providers.items():
-            if pid not in ["gemini", "xai"]:
+            if pid not in ["gemini", "xai", "openrouter"]:
                 secret_ref = getattr(p, "secret_ref", f"CUSTOM_PROVIDER_{pid.upper()}_KEY")
                 custom_data.append({
                     "provider_id": p.provider_id,

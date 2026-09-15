@@ -283,20 +283,37 @@ async def get_dashboard_stats(_: bool = Depends(verify_dashboard_access)):
 
     from core.security.secret_store import secret_store
     active_providers_count = 0
-    for p in provider_registry.list_providers():
-        prov_id = p.provider_id.lower()
-        has_valid_sec = False
-        if "gemini" in prov_id:
-            has_valid_sec = bool(secret_store.get_secret("GEMINI_PRIMARY_API_KEY") or secret_store.get_secret("GEMINI_BACKUP_API_KEY"))
-        elif "xai" in prov_id or "grok" in prov_id:
-            has_valid_sec = bool(secret_store.get_secret("XAI_API_KEY"))
-        else:
-            has_valid_sec = bool(p.api_key or secret_store.get_secret(f"{prov_id.upper()}_API_KEY"))
-
-        if p.enabled and has_valid_sec:
+    # 1. Gemini Primary
+    if bool(secret_store.get_secret("GEMINI_PRIMARY_API_KEY") or secret_store.get_secret("GEMINI_API_KEY")):
+        s = secret_store._secrets.get("GEMINI_PRIMARY_API_KEY") or secret_store._secrets.get("GEMINI_API_KEY")
+        is_en = s.get("enabled", True) if isinstance(s, dict) else getattr(s, "enabled", True)
+        if is_en:
             active_providers_count += 1
-    if active_providers_count == 0 and (secret_store.get_secret("GEMINI_PRIMARY_API_KEY") or secret_store.get_secret("XAI_API_KEY")):
-        active_providers_count = 1
+    # 2. Gemini Backup
+    if bool(secret_store.get_secret("GEMINI_BACKUP_API_KEY") or secret_store.get_secret("GEMINI_API_KEY_2")):
+        s = secret_store._secrets.get("GEMINI_BACKUP_API_KEY") or secret_store._secrets.get("GEMINI_API_KEY_2")
+        is_en = s.get("enabled", True) if isinstance(s, dict) else getattr(s, "enabled", True)
+        if is_en:
+            active_providers_count += 1
+    # 3. OpenRouter
+    openrouter_prov = provider_registry.get_provider("openrouter")
+    if bool(secret_store.get_secret("OPENROUTER_API_KEY")):
+        s = secret_store._secrets.get("OPENROUTER_API_KEY")
+        is_en = s.get("enabled", True) if isinstance(s, dict) else getattr(s, "enabled", True)
+        if is_en and (openrouter_prov is None or openrouter_prov.enabled):
+            active_providers_count += 1
+    # 4. xAI
+    xai_prov = provider_registry.get_provider("xai")
+    if bool(secret_store.get_secret("XAI_API_KEY")):
+        s = secret_store._secrets.get("XAI_API_KEY")
+        is_en = s.get("enabled", True) if isinstance(s, dict) else getattr(s, "enabled", True)
+        if is_en and (xai_prov is None or xai_prov.enabled):
+            active_providers_count += 1
+    # 5. Other custom providers
+    for p in provider_registry.list_providers():
+        if p.provider_id.lower() not in ["gemini", "openrouter", "xai"]:
+            if p.enabled and bool(p.api_key or secret_store.get_secret(f"{p.provider_id.upper()}_API_KEY")):
+                active_providers_count += 1
 
     app_mode = os.environ.get("APP_MODE", "DRY_RUN").upper()
     ctrl = control_bus.get_state()
@@ -360,6 +377,7 @@ async def get_system_health_diagnostic(_: bool = Depends(verify_dashboard_access
     # Evaluate secrets
     gemini_pri = bool(secret_store.get_secret("GEMINI_PRIMARY_API_KEY"))
     gemini_bak = bool(secret_store.get_secret("GEMINI_BACKUP_API_KEY"))
+    openrouter_key = bool(secret_store.get_secret("OPENROUTER_API_KEY"))
     xai_key = bool(secret_store.get_secret("XAI_API_KEY"))
     meta_tok = bool(secret_store.get_secret("META_SYSTEM_USER_TOKEN"))
     threads_tok = bool(secret_store.get_secret("THREADS_ACCESS_TOKEN"))
@@ -381,6 +399,7 @@ async def get_system_health_diagnostic(_: bool = Depends(verify_dashboard_access
         {"name": "Storage Guard Guardrail", "status": "HEALTHY" if disk.get("status") != "CRITICAL" else "CRITICAL", "detail": "Auto-cleanup threshold: 90%"},
         {"name": "Gemini Primary AI", "status": "HEALTHY" if gemini_pri else "NOT_CONFIGURED", "detail": "Tier 1 Route (gemini-2.5-flash / gemini-3.6)"},
         {"name": "Gemini Backup AI", "status": "HEALTHY" if gemini_bak else "NOT_CONFIGURED", "detail": "Auto-failover on 429 quota"},
+        {"name": "OpenRouter Multi-Model Gateway", "status": "HEALTHY" if openrouter_key else "NOT_CONFIGURED", "detail": "Tier 2 Multi-Model Gateway"},
         {"name": "xAI / Grok Fallback", "status": "HEALTHY" if xai_key else "NOT_CONFIGURED", "detail": "Tier 2 Non-Google fallback"},
         {"name": "Meta Facebook Publishing", "status": "HEALTHY" if (meta_tok and fb_page_id) else ("PARTIAL" if meta_tok else "NOT_CONFIGURED"), "detail": f"Page ID: {fb_page_id or 'Not set'}"},
         {"name": "Meta Instagram Publishing", "status": "HEALTHY" if (meta_tok and ig_user_id) else ("PARTIAL" if meta_tok else "NOT_CONFIGURED"), "detail": f"IG ID: {ig_user_id or 'Not set'}"},
@@ -474,6 +493,8 @@ async def set_vault_secret_endpoint(payload: Dict[str, Any], _: bool = Depends(v
     if test_first:
         if "gemini" in name.lower():
             test_fn = credential_health_engine.test_gemini_credential
+        elif "openrouter" in name.lower():
+            test_fn = credential_health_engine.test_openrouter_credential
         elif "fb" in name.lower() or "meta" in name.lower():
             test_fn = credential_health_engine.test_meta_credential
         elif "telegram" in name.lower():
@@ -495,10 +516,15 @@ async def test_vault_secret_endpoint(payload: Dict[str, Any], _: bool = Depends(
 
     if "gemini" in name.lower():
         res = await credential_health_engine.test_gemini_credential(custom_val or secret_store.get_secret(name))
+    elif "openrouter" in name.lower():
+        res = await credential_health_engine.test_openrouter_credential(custom_val or secret_store.get_secret(name))
     elif "fb" in name.lower() or "meta" in name.lower() or "facebook" in name.lower():
         res = await credential_health_engine.test_meta_credential(custom_val or secret_store.get_secret(name))
     elif "telegram" in name.lower():
         res = await credential_health_engine.test_telegram_credential(custom_val or secret_store.get_secret(name))
+    elif "xai" in name.lower():
+        from providers.xai_provider import xai_provider
+        res = xai_provider.test_connection()
     else:
         res = {"status": "VALID", "message": f"Kredensial '{name}' terdaftar di Vault."}
     return res
@@ -1444,6 +1470,47 @@ async def serve_dashboard(_: bool = Depends(verify_dashboard_access)):
                                 <div style="display:flex; justify-content:space-between; margin-top:8px; font-size:0.68rem; color:var(--text-muted);">
                                     <span>Auto-failover jika kuota Key 1 habis / 429</span>
                                     <span style="color:#F59E0B; font-weight:600;">AUTO-FAILOVER</span>
+                                </div>
+                            </div>
+
+                            <!-- OpenRouter Tier 2 Multi-Model Gateway Card -->
+                            <div class="form-group" style="background: rgba(59,130,246,0.03); border: 1px solid rgba(59,130,246,0.22); border-radius: 6px; padding: 12px; margin-bottom: 14px;">
+                                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                                    <div style="display:flex; align-items:center; gap:6px;">
+                                        <span style="font-weight: 700; font-size:0.85rem; color:#F1F5F9;">OpenRouter</span>
+                                        <span class="brand-badge" style="color:#60A5FA; border-color:rgba(59,130,246,0.4); font-size:0.65rem;">Tier 2 Multi-Model</span>
+                                    </div>
+                                    <span id="ref-status-openrouter" style="font-size: 0.72rem; font-weight: 600; color: var(--text-muted);">● Memeriksa...</span>
+                                </div>
+                                <div style="display: flex; flex-direction: column; gap: 4px; font-size: 0.76rem; color: var(--text-muted); background: rgba(0,0,0,0.25); padding: 8px 10px; border-radius: 6px; margin-bottom: 10px; border: 1px solid rgba(255,255,255,0.04);">
+                                    <div style="display:flex; justify-content:space-between; align-items:center;">
+                                        <span>Ref: <code style="color:#93C5FD; font-family:monospace;">OPENROUTER_API_KEY</code></span>
+                                    </div>
+                                    <div style="display:flex; justify-content:space-between; align-items:center;">
+                                        <span>Uji: <b id="tested-openrouter" style="color:#10B981;">-</b></span>
+                                    </div>
+                                    <div style="display:flex; justify-content:space-between; align-items:center;">
+                                        <span>API Key: <code id="fp-openrouter" style="color:#34D399; font-family:monospace;">••••••••</code></span>
+                                    </div>
+                                    <div style="display:flex; justify-content:space-between; align-items:center;">
+                                        <span>Update: <span id="updated-openrouter" style="color:var(--text-main); font-weight:500;">-</span></span>
+                                    </div>
+                                    <div style="display:flex; justify-content:space-between; align-items:center; margin-top:2px;">
+                                        <span>Base URL: <code style="color:#94A3B8; font-family:monospace; font-size:0.7rem;">https://openrouter.ai/api/v1</code></span>
+                                    </div>
+                                    <div style="display:flex; flex-direction:column; gap:2px; margin-top:4px;">
+                                        <label style="font-size:0.7rem; color:#94A3B8;">Default Model:</label>
+                                        <input type="text" id="env-openrouter-model" class="form-control" placeholder="openai/gpt-4o-mini" style="font-size:0.75rem; padding:4px 8px; height:28px;">
+                                    </div>
+                                </div>
+                                <div style="display: flex; gap: 6px;">
+                                    <button class="btn btn-outline" style="flex:1; font-size: 0.74rem; padding: 5px 8px; border-color:var(--accent-indigo); color:#818cf8;" onclick="openReplaceSecretModal('OPENROUTER_API_KEY', 'openrouter')">🔄 Ganti / Set</button>
+                                    <button class="btn btn-outline" style="font-size: 0.74rem; padding: 5px 8px; white-space: nowrap;" onclick="testVaultSecret('OPENROUTER_API_KEY')">🔍 Test</button>
+                                    <button id="btn-toggle-openrouter" class="btn btn-outline" style="font-size: 0.74rem; padding: 5px 8px;" onclick="toggleVaultSecretEnabled('OPENROUTER_API_KEY', true)">⏸️</button>
+                                </div>
+                                <div style="display:flex; justify-content:space-between; margin-top:8px; font-size:0.68rem; color:var(--text-muted);">
+                                    <span>Gateway multi-model OpenAI/Claude/DeepSeek</span>
+                                    <span style="color:#60A5FA; font-weight:600;">MULTI-MODEL GATEWAY</span>
                                 </div>
                             </div>
 
@@ -2825,6 +2892,7 @@ async def serve_dashboard(_: bool = Depends(verify_dashboard_access)):
             const cardConfigs = [
                 {{ id: 'gemini', keys: ['GEMINI_PRIMARY_API_KEY', 'GEMINI_API_KEY', 'gemini_api_key'], defaultKey: 'GEMINI_PRIMARY_API_KEY' }},
                 {{ id: 'gemini-2', keys: ['GEMINI_BACKUP_API_KEY', 'GEMINI_API_KEY_2', 'gemini_api_key_2'], defaultKey: 'GEMINI_BACKUP_API_KEY' }},
+                {{ id: 'openrouter', keys: ['OPENROUTER_API_KEY', 'openrouter_api_key'], defaultKey: 'OPENROUTER_API_KEY' }},
                 {{ id: 'xai', keys: ['XAI_API_KEY', 'xai_api_key'], defaultKey: 'XAI_API_KEY' }},
                 {{ id: 'fb', keys: ['META_SYSTEM_USER_TOKEN', 'FB_PAGE_ACCESS_TOKEN', 'fb_page_access_token'], defaultKey: 'META_SYSTEM_USER_TOKEN' }},
                 {{ id: 'ig', keys: ['META_SYSTEM_USER_TOKEN', 'INSTAGRAM_ACCESS_TOKEN', 'instagram_access_token'], defaultKey: 'META_SYSTEM_USER_TOKEN' }},
@@ -2990,6 +3058,7 @@ async def serve_dashboard(_: bool = Depends(verify_dashboard_access)):
                 const env = d.env || {{}};
                 if (document.getElementById('env-fb-page-id')) document.getElementById('env-fb-page-id').value = env.FB_PAGE_ID || '1253340697871457';
                 if (document.getElementById('env-ig-user-id')) document.getElementById('env-ig-user-id').value = env.IG_USER_ID || env.INSTAGRAM_ACCOUNT_ID || '17841426699286663';
+                if (document.getElementById('env-openrouter-model')) document.getElementById('env-openrouter-model').value = env.OPENROUTER_DEFAULT_MODEL || 'openai/gpt-4o-mini';
                 if (document.getElementById('env-telegram-admins')) document.getElementById('env-telegram-admins').value = env.TELEGRAM_ADMIN_IDS || '';
                 if (document.getElementById('env-telegram-alert-chat')) document.getElementById('env-telegram-alert-chat').value = env.TELEGRAM_ALERT_CHAT_ID || env.TELEGRAM_ADMIN_IDS || '';
 
@@ -3008,6 +3077,7 @@ async def serve_dashboard(_: bool = Depends(verify_dashboard_access)):
                 FB_PAGE_ID: document.getElementById('env-fb-page-id') ? document.getElementById('env-fb-page-id').value.trim() : '',
                 IG_USER_ID: document.getElementById('env-ig-user-id') ? document.getElementById('env-ig-user-id').value.trim() : '',
                 INSTAGRAM_ACCOUNT_ID: document.getElementById('env-ig-user-id') ? document.getElementById('env-ig-user-id').value.trim() : '',
+                OPENROUTER_DEFAULT_MODEL: document.getElementById('env-openrouter-model') ? document.getElementById('env-openrouter-model').value.trim() : '',
                 TELEGRAM_ADMIN_IDS: document.getElementById('env-telegram-admins') ? document.getElementById('env-telegram-admins').value.trim() : '',
                 TELEGRAM_ALERT_CHAT_ID: document.getElementById('env-telegram-alert-chat') ? document.getElementById('env-telegram-alert-chat').value.trim() : ''
             }};
