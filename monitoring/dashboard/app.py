@@ -2064,6 +2064,13 @@ async def serve_dashboard(_: bool = Depends(verify_dashboard_access)):
                 <div id="prev-plat-name">Platform: Facebook</div>
             </div>
 
+            <div class="modal-actions">
+                <button class="btn btn-outline" onclick="closePostPreview()">Tutup</button>
+                <button class="btn btn-primary" id="prev-btn-publish" onclick="publishCurrentPreviewNow()" style="background: linear-gradient(135deg, #2563EB, #1D4ED8); font-weight:700;">🚀 Terbitkan Sekarang ke Facebook</button>
+            </div>
+        </div>
+    </div>
+
     <!-- MODAL PRODUCTION PREFLIGHT CONFIRMATION -->
     <div id="modal-production-confirm" class="modal-overlay">
         <div class="modal-box" style="width: 560px; max-width: 95vw;">
