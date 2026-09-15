@@ -22,15 +22,23 @@ logger = logging.getLogger("telegram_c2")
 
 class TelegramC2Bot:
     def __init__(self, token: Optional[str] = None, admin_ids: Optional[Set[int]] = None):
-        self.token = token or settings.TELEGRAM_BOT_TOKEN
+        self._explicit_token = token
         self.admin_ids = admin_ids or settings.admin_ids
         self.alert_chat_id = settings.TELEGRAM_ALERT_CHAT_ID
         self.is_paused = False
         self.is_emergency_stopped = False
         self._polling_active = False
 
+    @property
+    def token(self) -> str:
+        if self._explicit_token is not None:
+            return self._explicit_token
+        from core.security.secret_store import secret_store
+        return secret_store.get_secret("TELEGRAM_BOT_TOKEN") or settings.TELEGRAM_BOT_TOKEN or ""
+
     def is_configured(self) -> bool:
-        return bool(self.token and self.token != "your_telegram_bot_token_here")
+        t = self.token
+        return bool(t and t != "your_telegram_bot_token_here")
 
     def authenticate_user(self, user_id: int) -> bool:
         """

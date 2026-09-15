@@ -341,3 +341,70 @@ def test_20_dry_run_safety_mode_default():
     # In test environment, APP_MODE must default to DRY_RUN unless explicitly overridden
     app_mode = os.environ.get("APP_MODE", getattr(settings, "APP_MODE", "DRY_RUN"))
     assert app_mode in ["DRY_RUN", "PRODUCTION"]
+
+
+# --- TEST 21: Startup credential audit preserves authoritative Vault without overwrite ---
+def test_21_startup_credential_audit_preserves_authoritative_vault(tmp_path, monkeypatch):
+    vault_file = tmp_path / "credentials.vault"
+    store = SecretStore(vault_path=vault_file)
+    store.set_secret("GEMINI_PRIMARY_API_KEY", "AIzaSyVaultAuthoritative12345", provider="google")
+    
+    # Simulate legacy duplicate in environment
+    monkeypatch.setenv("GEMINI_API_KEY", "AIzaSyLegacyOldValue99999")
+    
+    mgr = CredentialManager()
+    mgr.secret_store = store
+    
+    audit_res = mgr.run_startup_credential_audit()
+    assert len(audit_res["duplicates_detected"]) > 0
+    duplicate_item = audit_res["duplicates_detected"][0]
+    assert duplicate_item["status"] == "LEGACY_SECRET_DUPLICATE"
+    assert duplicate_item["action"] == "PRESERVED_VAULT"
+    
+    # Vault value must remain untouched
+    assert store.get_secret("GEMINI_PRIMARY_API_KEY") == "AIzaSyVaultAuthoritative12345"
+
+
+# --- TEST 22: API env endpoint zero secret leak ---
+def test_22_api_env_zero_secret_leak(tmp_path):
+    env_file = tmp_path / ".env"
+    env_file.write_text(
+        "GEMINI_API_KEY=AIzaSySecretSampleKey123\n"
+        "TELEGRAM_BOT_TOKEN=8059238085:AAFKMockTelegramToken123\n"
+        "FB_PAGE_ID=1253340697871457\n"
+        "APP_MODE=DRY_RUN\n",
+        encoding="utf-8"
+    )
+    
+    mgr = CredentialManager()
+    mgr._custom_env_path = env_file
+    
+    # Monkeypatch env_file_path property
+    monkeypatch_prop = property(lambda self: env_file)
+    CredentialManager.env_file_path = monkeypatch_prop
+    
+    safe_env = mgr.read_env_file()
+    assert safe_env["FB_PAGE_ID"] == "1253340697871457"
+    assert safe_env["APP_MODE"] == "DRY_RUN"
+    
+    # Secrets must be masked (not raw)
+    assert safe_env["GEMINI_API_KEY"] != "AIzaSySecretSampleKey123"
+    assert "••••" in safe_env["GEMINI_API_KEY"] or "********" in safe_env["GEMINI_API_KEY"]
+    assert "8059238085:AAFK" not in safe_env["TELEGRAM_BOT_TOKEN"]
+
+
+# --- TEST 23: Platform config update updates non-secrets safely ---
+def test_23_platform_config_update_non_secrets(tmp_path):
+    env_file = tmp_path / ".env"
+    env_file.write_text("FB_PAGE_ID=123456\nTELEGRAM_ADMIN_IDS=999\n", encoding="utf-8")
+    
+    mgr = CredentialManager()
+    CredentialManager.env_file_path = property(lambda self: env_file)
+    
+    ok = mgr.update_env_file({"FB_PAGE_ID": "987654321", "TELEGRAM_ADMIN_IDS": "111222"})
+    assert ok is True
+    
+    raw = mgr.read_raw_env_file()
+    assert raw["FB_PAGE_ID"] == "987654321"
+    assert raw["TELEGRAM_ADMIN_IDS"] == "111222"
+

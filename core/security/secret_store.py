@@ -375,6 +375,23 @@ class SecretStore:
         """Retrieves raw secret value in-memory. NEVER log the return value."""
         sec = self._secrets.get(name)
         if not sec:
+            # Canonical alias mappings for seamless fallback
+            aliases = {
+                "GEMINI_PRIMARY_API_KEY": ["GEMINI_API_KEY"],
+                "GEMINI_API_KEY": ["GEMINI_PRIMARY_API_KEY"],
+                "GEMINI_BACKUP_API_KEY": ["GEMINI_API_KEY_2"],
+                "GEMINI_API_KEY_2": ["GEMINI_BACKUP_API_KEY"],
+                "META_SYSTEM_USER_TOKEN": ["FB_PAGE_ACCESS_TOKEN", "IG_ACCESS_TOKEN", "META_ACCESS_TOKEN"],
+                "FB_PAGE_ACCESS_TOKEN": ["META_SYSTEM_USER_TOKEN", "META_ACCESS_TOKEN"],
+                "IG_ACCESS_TOKEN": ["META_SYSTEM_USER_TOKEN", "META_ACCESS_TOKEN"],
+                "META_ACCESS_TOKEN": ["META_SYSTEM_USER_TOKEN", "FB_PAGE_ACCESS_TOKEN"],
+            }
+            for alt in aliases.get(name, []):
+                if alt in self._secrets:
+                    sec = self._secrets[alt]
+                    break
+
+        if not sec:
             return None
         if sec.get("status") == "DISABLED":
             return None

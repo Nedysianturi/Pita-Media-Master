@@ -38,6 +38,7 @@ from core.runtime.self_check import run_startup_self_check, format_self_check_cl
 from core.runtime.supervisor import run_daemon
 from core.runtime.dry_run import run_dry_run_simulation
 from core.runtime.maintenance import StorageMaintenance
+from core.security.credential_manager import credential_manager
 
 
 async def run_init_db():
@@ -136,6 +137,9 @@ def run_dashboard_server():
 
 
 def main():
+    # Audit credentials and ensure authoritative Vault single source of truth
+    credential_manager.run_startup_credential_audit()
+
     parser = argparse.ArgumentParser(description="Pita Media - Autonomous Multi-Agent Content Engine")
     subparsers = parser.add_subparsers(dest="command", help="Perintah yang tersedia")
 

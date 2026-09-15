@@ -1,5 +1,35 @@
 [
   {
+    "version_id": "brand_bible_1789445139_7b4f50697156",
+    "config_name": "brand_bible",
+    "timestamp": 1789445139,
+    "iso_time": "2026-09-15T04:05:39Z",
+    "changed_by": "TEST_SUITE",
+    "reason": "Automated test snapshot",
+    "hash": "7b4f50697156",
+    "file_path": "C:\\Users\\Cipad\\.gemini\\antigravity-ide\\scratch\\pita-media\\storage\\config_history\\brand_bible_1789445139_7b4f50697156.json"
+  },
+  {
+    "version_id": "brand_bible_1789445117_7b4f50697156",
+    "config_name": "brand_bible",
+    "timestamp": 1789445117,
+    "iso_time": "2026-09-15T04:05:17Z",
+    "changed_by": "TEST_SUITE",
+    "reason": "Automated test snapshot",
+    "hash": "7b4f50697156",
+    "file_path": "C:\\Users\\Cipad\\.gemini\\antigravity-ide\\scratch\\pita-media\\storage\\config_history\\brand_bible_1789445117_7b4f50697156.json"
+  },
+  {
+    "version_id": "brand_bible_1789445072_7b4f50697156",
+    "config_name": "brand_bible",
+    "timestamp": 1789445072,
+    "iso_time": "2026-09-15T04:04:32Z",
+    "changed_by": "TEST_SUITE",
+    "reason": "Automated test snapshot",
+    "hash": "7b4f50697156",
+    "file_path": "C:\\Users\\Cipad\\.gemini\\antigravity-ide\\scratch\\pita-media\\storage\\config_history\\brand_bible_1789445072_7b4f50697156.json"
+  },
+  {
     "version_id": "brand_bible_1789444549_7b4f50697156",
     "config_name": "brand_bible",
     "timestamp": 1789444549,

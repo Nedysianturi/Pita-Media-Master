@@ -27,8 +27,8 @@ class CentralCredentialManager:
     def env_file_path(self) -> Path:
         return Path(__file__).resolve().parent.parent.parent / ".env"
 
-    def read_env_file(self) -> Dict[str, str]:
-        """Reads raw key-values directly from .env file."""
+    def read_raw_env_file(self) -> Dict[str, str]:
+        """Reads raw key-values directly from .env file for internal migration only."""
         if not self.env_file_path.exists():
             return {}
         result = {}
@@ -43,100 +43,188 @@ class CentralCredentialManager:
             logger.error(f"Error reading .env file: {e}")
         return result
 
+    def read_env_file(self) -> Dict[str, str]:
+        """
+        Reads safe environment configurations. Sensitive secrets are NEVER returned in plaintext.
+        Only non-secret parameters (IDs, flags, modes) return plaintext.
+        """
+        raw = self.read_raw_env_file()
+        sensitive_substrings = ["key", "token", "secret", "password", "auth", "credential"]
+        safe_dict = {}
+        for k, v in raw.items():
+            k_lower = k.lower()
+            if any(s in k_lower for s in sensitive_substrings):
+                # Mask sensitive credentials
+                safe_dict[k] = self.secret_store.mask_secret(str(v)) if v else ""
+            else:
+                # Non-secret configuration
+                safe_dict[k] = v
+        return safe_dict
+
     def update_env_file(self, updates: Dict[str, str]) -> bool:
-        """Updates or appends key-value pairs directly in the .env file preserving comments."""
-        try:
-            env_path = self.env_file_path
-            lines = []
-            if env_path.exists():
-                with open(env_path, "r", encoding="utf-8") as f:
+        """
+        Updates non-secret configurations in .env file safely.
+        If a sensitive key is passed with a real unmasked value, stores it in SecretStore.
+        Never overwrites secrets with masked strings (e.g., '••••' or '***').
+        """
+        sensitive_substrings = ["key", "token", "secret", "password", "auth", "credential"]
+        
+        lines = []
+        if self.env_file_path.exists():
+            try:
+                with open(self.env_file_path, "r", encoding="utf-8") as f:
                     lines = f.readlines()
+            except Exception as e:
+                logger.error(f"Error reading .env lines: {e}")
 
-            existing_keys_updated = set()
-            new_lines = []
-
-            for line in lines:
-                stripped = line.strip()
-                if stripped and not stripped.startswith("#") and "=" in stripped:
-                    k, _ = stripped.split("=", 1)
-                    k = k.strip()
-                    if k in updates:
-                        new_lines.append(f"{k}={updates[k]}\n")
-                        existing_keys_updated.add(k)
+        existing_keys = set()
+        updated_lines = []
+        
+        for line in lines:
+            stripped = line.strip()
+            if stripped and not stripped.startswith("#") and "=" in stripped:
+                k, v = stripped.split("=", 1)
+                k_clean = k.strip()
+                existing_keys.add(k_clean)
+                if k_clean in updates:
+                    new_val = str(updates[k_clean]).strip()
+                    if new_val.startswith("••••") or new_val.startswith("***") or new_val.startswith("********"):
+                        updated_lines.append(line)
                         continue
-                new_lines.append(line)
+                    
+                    is_sensitive = any(s in k_clean.lower() for s in sensitive_substrings)
+                    if is_sensitive and new_val:
+                        self.secret_store.set_secret(k_clean, new_val, created_by="ENV_UPDATE")
+                    
+                    updated_lines.append(f"{k_clean}={new_val}\n")
+                    os.environ[k_clean] = new_val
+                else:
+                    updated_lines.append(line)
+            else:
+                updated_lines.append(line)
 
-            # Append any new keys not found in existing lines
-            for k, v in updates.items():
-                if k not in existing_keys_updated:
-                    new_lines.append(f"{k}={v}\n")
+        for k_clean, v in updates.items():
+            if k_clean not in existing_keys:
+                new_val = str(v).strip()
+                if new_val.startswith("••••") or new_val.startswith("***") or new_val.startswith("********"):
+                    continue
+                is_sensitive = any(s in k_clean.lower() for s in sensitive_substrings)
+                if is_sensitive and new_val:
+                    self.secret_store.set_secret(k_clean, new_val, created_by="ENV_UPDATE")
+                updated_lines.append(f"{k_clean}={new_val}\n")
+                os.environ[k_clean] = new_val
 
-            with open(env_path, "w", encoding="utf-8") as f:
-                f.writelines(new_lines)
-
-            # Reload into os.environ, settings, and SecretStore
-            for k, v in updates.items():
-                os.environ[k] = str(v)
-                if hasattr(settings, k):
-                    setattr(settings, k, v)
-                self.secret_store.set_secret(k.lower(), str(v))
-                self.secret_store.set_secret(k, str(v))
-
-            logger.info(f"Directly updated {len(updates)} keys in .env file.")
+        try:
+            with open(self.env_file_path, "w", encoding="utf-8") as f:
+                f.writelines(updated_lines)
             return True
         except Exception as e:
-            logger.error(f"Failed to update .env file: {e}")
+            logger.error(f"Error updating .env file: {e}")
             return False
 
-    def _initialize_from_env(self):
-        """Pre-seeds secret store from .env if not already stored."""
-        env_dict = self.read_env_file()
-        mappings = [
-            ("gemini_api_key", env_dict.get("GEMINI_API_KEY") or settings.GEMINI_API_KEY),
-            ("gemini_api_key_2", env_dict.get("GEMINI_API_KEY_2") or getattr(settings, "GEMINI_API_KEY_2", "")),
-            ("xai_api_key", env_dict.get("XAI_API_KEY") or os.getenv("XAI_API_KEY", "")),
-            ("fb_page_access_token", env_dict.get("FB_PAGE_ACCESS_TOKEN") or settings.FB_PAGE_ACCESS_TOKEN),
-            ("fb_page_id", env_dict.get("FB_PAGE_ID") or settings.FB_PAGE_ID),
-            ("instagram_account_id", env_dict.get("INSTAGRAM_ACCOUNT_ID") or os.getenv("INSTAGRAM_ACCOUNT_ID", "")),
-            ("ig_access_token", env_dict.get("IG_ACCESS_TOKEN") or os.getenv("IG_ACCESS_TOKEN", "")),
-            ("threads_access_token", env_dict.get("THREADS_ACCESS_TOKEN") or os.getenv("THREADS_ACCESS_TOKEN", "")),
-            ("threads_user_id", env_dict.get("THREADS_USER_ID") or os.getenv("THREADS_USER_ID", "")),
-            ("telegram_bot_token", env_dict.get("TELEGRAM_BOT_TOKEN") or settings.TELEGRAM_BOT_TOKEN),
-            ("telegram_alert_chat_id", env_dict.get("TELEGRAM_ALERT_CHAT_ID") or settings.TELEGRAM_ALERT_CHAT_ID),
+    def run_startup_credential_audit(self) -> Dict[str, Any]:
+        """
+        Scans legacy storage (.env file, JSON files, etc.) for sensitive credentials.
+        If a credential already exists in SecretStore as valid, it is PRESERVED and flagged as LEGACY_SECRET_DUPLICATE.
+        If missing from SecretStore, it is safely migrated into SecretStore.
+        """
+        audit_results = {
+            "migrated": [],
+            "duplicates_detected": [],
+            "vault_authoritative": []
+        }
+        
+        env_dict = self.read_raw_env_file()
+        sensitive_keys = [
+            ("GEMINI_PRIMARY_API_KEY", ["GEMINI_API_KEY", "gemini_api_key"]),
+            ("GEMINI_BACKUP_API_KEY", ["GEMINI_API_KEY_2", "gemini_api_key_2"]),
+            ("XAI_API_KEY", ["xai_api_key"]),
+            ("META_SYSTEM_USER_TOKEN", ["FB_PAGE_ACCESS_TOKEN", "fb_page_access_token", "IG_ACCESS_TOKEN", "ig_access_token"]),
+            ("THREADS_ACCESS_TOKEN", ["threads_access_token"]),
+            ("TELEGRAM_BOT_TOKEN", ["telegram_bot_token"]),
+            ("DASHBOARD_SECRET_KEY", ["dashboard_secret_key"]),
         ]
-        for key, val in mappings:
-            if val:
-                self.secret_store.set_secret(key, str(val))
+
+        for canonical_key, aliases in sensitive_keys:
+            vault_val = self.secret_store.get_secret(canonical_key)
+            
+            # Check if any alias has value in .env
+            legacy_val = None
+            found_legacy_key = None
+            for k in [canonical_key] + aliases:
+                v = env_dict.get(k) or os.environ.get(k)
+                if v and str(v).strip() and not str(v).startswith("your_") and not str(v).startswith("mock_"):
+                    legacy_val = str(v).strip()
+                    found_legacy_key = k
+                    break
+            
+            if legacy_val:
+                if vault_val:
+                    # Vault already has valid secret -> do NOT overwrite, flag duplicate
+                    logger.warning(f"[LEGACY_SECRET_DUPLICATE] Sensitive secret '{found_legacy_key}' found in legacy storage. Vault version is authoritative and preserved.")
+                    audit_results["duplicates_detected"].append({
+                        "key": found_legacy_key,
+                        "canonical": canonical_key,
+                        "status": "LEGACY_SECRET_DUPLICATE",
+                        "action": "PRESERVED_VAULT"
+                    })
+                else:
+                    # Missing in Vault -> migrate into Vault
+                    self.secret_store.set_secret(canonical_key, legacy_val, created_by="STARTUP_MIGRATION")
+                    logger.info(f"Migrated legacy credential '{found_legacy_key}' to Vault key '{canonical_key}'.")
+                    audit_results["migrated"].append(canonical_key)
+            elif vault_val:
+                audit_results["vault_authoritative"].append(canonical_key)
+
+        return audit_results
+
+    def _initialize_from_env(self):
+        """Startup seeding: runs the startup credential audit without destructive overwrites."""
+        self.run_startup_credential_audit()
 
     def get_credential(self, key: str, fallback_env: Optional[str] = None) -> Any:
-        """Retrieves active credential value securely, prioritizing direct .env read."""
-        env_dict = self.read_env_file()
+        """
+        Retrieves active credential value securely from SecretStore as SINGLE SOURCE OF TRUTH.
+        Supports both direct secret lookup (returns string) and service dictionary lookup (returns dict).
+        """
+        key_clean = key.strip()
+        service_names = ["gemini", "gemini_2", "google", "xai", "grok", "facebook", "fb", "instagram", "ig", "threads", "telegram"]
 
-        # 1. If explicit fallback_env provided
-        if fallback_env and fallback_env in env_dict and env_dict[fallback_env]:
-            return env_dict[fallback_env]
+        # 1. If querying service name, check for service credentials dictionary
+        if key_clean.lower() in service_names:
+            prefix_dict = {}
+            for k in ["api_key", "access_token", "page_id", "ig_user_id", "threads_user_id", "user_id", "token", "bot_token", "page_access_token"]:
+                stored = self.secret_store.get_secret(f"{key_clean}_{k}") or self.secret_store.get_secret(f"{key_clean.upper()}_{k.upper()}")
+                if stored:
+                    prefix_dict[k] = stored
+            if prefix_dict:
+                return prefix_dict
 
-        # 2. Check prefixed keys for service dictionaries (e.g. key="gemini", "facebook", "telegram")
+        # 2. Direct check in SecretStore (Authoritative)
+        val = self.secret_store.get_secret(key_clean)
+        if val:
+            return val
+        val_upper = self.secret_store.get_secret(key_clean.upper())
+        if val_upper:
+            return val_upper
+
+        # 3. Check prefixed keys for service dictionaries
         prefix_dict = {}
-        for k in ["api_key", "access_token", "page_id", "ig_user_id", "threads_user_id", "user_id", "token"]:
-            stored = self.secret_store.get_secret(f"{key}_{k}")
+        for k in ["api_key", "access_token", "page_id", "ig_user_id", "threads_user_id", "user_id", "token", "bot_token", "page_access_token"]:
+            stored = self.secret_store.get_secret(f"{key_clean}_{k}") or self.secret_store.get_secret(f"{key_clean.upper()}_{k.upper()}")
             if stored:
                 prefix_dict[k] = stored
-            elif f"{key.upper()}_{k.upper()}" in env_dict:
-                prefix_dict[k] = env_dict[f"{key.upper()}_{k.upper()}"]
         if prefix_dict:
             return prefix_dict
 
-        # 3. Direct exact key check in .env
-        if key.upper() in env_dict and env_dict[key.upper()]:
-            return env_dict[key.upper()]
-        if key in env_dict and env_dict[key]:
-            return env_dict[key]
-
-        # 4. SecretStore exact check
-        val = self.secret_store.get_secret(key)
-        if val:
-            return val
+        # 3. Non-sensitive configuration fallback from raw .env
+        raw_env = self.read_raw_env_file()
+        if fallback_env and fallback_env in raw_env and raw_env[fallback_env]:
+            return raw_env[fallback_env]
+        if key.upper() in raw_env and raw_env[key.upper()]:
+            return raw_env[key.upper()]
+        if key in raw_env and raw_env[key]:
+            return raw_env[key]
 
         if fallback_env:
             return os.getenv(fallback_env, "")
