@@ -104,13 +104,18 @@ async def toggle_app_mode(payload: Dict[str, Any], _: bool = Depends(verify_dash
     if target_mode == "PRODUCTION":
         from core.security.secret_store import secret_store
         meta_tok = bool(secret_store.get_secret("META_SYSTEM_USER_TOKEN"))
-        gemini_key = bool(secret_store.get_secret("GEMINI_PRIMARY_API_KEY") or secret_store.get_secret("XAI_API_KEY"))
+        ai_key = bool(
+            secret_store.get_secret("GEMINI_PRIMARY_API_KEY") 
+            or secret_store.get_secret("GEMINI_API_KEY") 
+            or secret_store.get_secret("OPENROUTER_API_KEY") 
+            or secret_store.get_secret("XAI_API_KEY")
+        )
         if not meta_tok and not confirmed:
             raise HTTPException(
                 status_code=400, 
                 detail="Preflight Check Gagal: META_SYSTEM_USER_TOKEN belum terpasang di Vault. Tambahkan token terlebih dahulu."
             )
-        if not gemini_key and not confirmed:
+        if not ai_key and not confirmed:
             raise HTTPException(
                 status_code=400,
                 detail="Preflight Check Gagal: Setidaknya 1 AI Provider API Key harus aktif di Vault."
@@ -427,25 +432,41 @@ async def get_production_preflight(_: bool = Depends(verify_dashboard_access)):
     env_data = credential_manager.read_env_file()
     meta_tok = bool(secret_store.get_secret("META_SYSTEM_USER_TOKEN"))
     fb_page_id = bool(env_data.get("FB_PAGE_ID") or getattr(settings, "FB_PAGE_ID", ""))
-    gemini_key = bool(secret_store.get_secret("GEMINI_PRIMARY_API_KEY") or secret_store.get_secret("XAI_API_KEY"))
+    ai_provider_active = bool(
+        secret_store.get_secret("GEMINI_PRIMARY_API_KEY") 
+        or secret_store.get_secret("GEMINI_API_KEY") 
+        or secret_store.get_secret("OPENROUTER_API_KEY") 
+        or secret_store.get_secret("XAI_API_KEY")
+    )
     disk = storage_guard.check_disk_usage()
     ctrl = control_bus.get_state()
 
     checks = {
         "meta_system_user_token": {"label": "Meta System User Token di Vault", "passed": meta_tok, "required": True},
         "facebook_page_id": {"label": "FB_PAGE_ID Terkonfigurasi", "passed": fb_page_id, "required": True},
-        "ai_provider_active": {"label": "Minimal 1 AI Provider Aktif (Gemini/xAI)", "passed": gemini_key, "required": True},
+        "ai_provider_active": {"label": "Minimal 1 AI Provider Aktif (Gemini/OpenRouter/xAI)", "passed": ai_provider_active, "required": True},
         "vault_integrity": {"label": "Brankas Vault Terenkripsi & Sehat", "passed": not secret_store.is_safe_mode, "required": True},
         "disk_storage_healthy": {"label": "Kapasitas Penyimpanan Disk Aman", "passed": disk.get("status") != "CRITICAL", "required": True},
         "emergency_stop_clear": {"label": "Status Darurat (Emergency Stop) Tidak Aktif", "passed": ctrl.get("status") != "EMERGENCY_STOP", "required": True}
     }
+
+    items = [
+        {
+            "name": c["label"],
+            "status": "PASS" if c["passed"] else ("FAIL" if c["required"] else "WARN"),
+            "message": "Terpenuhi & Siap" if c["passed"] else "Belum terkonfigurasi / perlu tindakan"
+        }
+        for c in checks.values()
+    ]
 
     errors = [c["label"] for c in checks.values() if c["required"] and not c["passed"]]
     ready = len(errors) == 0
 
     return {
         "ready": ready,
+        "can_proceed": ready,
         "can_switch_to_production": ready,
+        "items": items,
         "checks": checks,
         "errors": errors,
         "warnings": ["Penerbitan nyata ke Facebook & Instagram akan langsung aktif setelah dialihkan ke PRODUCTION."]
@@ -2358,7 +2379,16 @@ async def serve_dashboard(_: bool = Depends(verify_dashboard_access)):
 
             if (!modal || !checklistEl || !confirmBtn) return;
 
-            const items = preflightData.items || [];
+            let items = preflightData.items;
+            if (!items && preflightData.checks) {{
+                items = Object.values(preflightData.checks).map(c => ({{
+                    name: c.label || c.name,
+                    status: c.passed ? 'PASS' : (c.required ? 'FAIL' : 'WARN'),
+                    message: c.passed ? 'Terpenuhi & Siap' : 'Belum terkonfigurasi / perlu tindakan'
+                }}));
+            }}
+            items = items || [];
+
             checklistEl.innerHTML = items.map(item => {{
                 const isPass = item.status === 'PASS';
                 const isWarn = item.status === 'WARN';
@@ -2375,7 +2405,9 @@ async def serve_dashboard(_: bool = Depends(verify_dashboard_access)):
                 `;
             }}).join('');
 
-            if (preflightData.can_proceed) {{
+            const canProceed = preflightData.can_proceed !== undefined ? preflightData.can_proceed : (preflightData.can_switch_to_production !== undefined ? preflightData.can_switch_to_production : preflightData.ready);
+
+            if (canProceed) {{
                 confirmBtn.disabled = false;
                 confirmBtn.style.opacity = '1';
                 confirmBtn.style.cursor = 'pointer';

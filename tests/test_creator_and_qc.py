@@ -95,3 +95,20 @@ async def test_reviewer_auto_repair_loop():
 
     assert len(history) >= 1
     assert "verdict" in history[0]
+
+
+def test_clean_ai_caption_fluff_strips_preamble():
+    """Menguji bahwa clean_ai_caption_fluff memangkas teks pengantar AI secara andal."""
+    from agents.reviewer.self_repair import clean_ai_caption_fluff
+
+    raw1 = "Berikut adalah draf caption Instagram/TikTok yang dirancang untuk menarik perhatian sejak detik pertama:\n\nSebuah mahakarya miniatur yang tersembunyi. #PitaMini"
+    assert clean_ai_caption_fluff(raw1) == "Sebuah mahakarya miniatur yang tersembunyi. #PitaMini"
+
+    raw2 = "**Berikut adalah opsi caption untuk media sosial:**\n\nMenyaksikan proses metamorfosis bahan sederhana menjadi karya seni megah. #PitaKreasi"
+    assert clean_ai_caption_fluff(raw2) == "Menyaksikan proses metamorfosis bahan sederhana menjadi karya seni megah. #PitaKreasi"
+
+    raw3 = '"Naskah cerita penuh inspirasi tentang sang penjaga waktu. #PitaCerita"'
+    assert clean_ai_caption_fluff(raw3) == "Naskah cerita penuh inspirasi tentang sang penjaga waktu. #PitaCerita"
+
+    raw4 = "Tentu, ini hasil naskah yang disempurnakan:\n\nProses pemulihan jam antik. #PitaTransformasi\n\nCatatan QC: Panjang teks sudah disesuaikan."
+    assert clean_ai_caption_fluff(raw4) == "Proses pemulihan jam antik. #PitaTransformasi"

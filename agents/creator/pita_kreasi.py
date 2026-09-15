@@ -9,6 +9,7 @@ from typing import Dict, Any, Optional
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from agents.creator.ideator import ContentIdea
+from agents.reviewer.self_repair import clean_ai_caption_fluff
 from providers.gemini_client import gemini_client
 from providers.veo_client import veo_client
 from providers.media_finisher import media_finisher
@@ -56,11 +57,17 @@ class PitaKreasiCreator:
             f"Konsep: {idea.concept}\n"
             f"Panjang: 60-110 kata. Tekankan kekuatan imajinasi dalam melihat keindahan dari benda sederhana. (#PitaKreasi #CreativeConcept #ArtisticExploration #PitaMedia)"
         )
-        caption = await self.gemini.generate_text(
+        caption_raw = await self.gemini.generate_text(
             prompt=caption_prompt,
+            system_instruction=(
+                "Anda adalah copywriter profesional media sosial. Kembalikan HANYA teks caption final murni "
+                "yang siap dipublikasikan tanpa kalimat pengantar, basa-basi, tanda kutip, maupun catatan seperti "
+                "'Berikut adalah draf caption...'. Langsung mulai dari baris pertama naskah."
+            ),
             db_session=db_session,
             job_id=job_id,
         )
+        caption = clean_ai_caption_fluff(caption_raw)
 
         raw_video_path = settings.raw_media_dir / f"kreasi_{job_id[:8]}_raw.mp4"
         generated_video = await self.veo.generate_video(

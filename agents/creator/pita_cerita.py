@@ -5,12 +5,16 @@ dengan cerita lengkap berbobot 150-300 kata di caption postingan.
 Fokus utama adalah kedalaman cerita & resonansi emosional.
 """
 
+import logging
 from pathlib import Path
 from typing import Dict, Any, List, Optional
 from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
+logger = logging.getLogger(__name__)
+
 from agents.creator.ideator import ContentIdea
+from agents.reviewer.self_repair import clean_ai_caption_fluff
 from providers.gemini_client import gemini_client
 from providers.imagen_client import imagen_client
 from config.settings import settings
@@ -36,7 +40,7 @@ class PitaCeritaCreator:
         Menjalankan pipeline pembuatan konten Pita Cerita.
         """
         prompt_instruction = f"""
-        Buat paket konten 'Pita Cerita' untuk carousel Instagram/media sosial berdasarkan ide berikut:
+        Rancang Carousel Gambar Statis dan Narasi Panjang untuk 'Pita Cerita'.
         Judul: {idea.title}
         Konsep: {idea.concept}
         Gaya Visual: {idea.visual_theme}
@@ -44,13 +48,15 @@ class PitaCeritaCreator:
         ATURAN MUTLAK PITA CERITA:
         1. CERITA CAPTION: Wajib berupa cerita lengkap, mendalam, dan reflektif dengan panjang ANTARA 150 SAMPAI 300 KATA. 
            Bercerita dengan kalimat indah, pembukaan memikat, konflik/makna batiniah, dan konklusi yang menyentuh.
+           HANYA kembalikan teks narasi cerita murni tanpa pengantar seperti 'Berikut adalah draf caption...'.
         2. GAMBAR CAROUSEL: Rancang 3 sampai 5 deskripsi prompt gambar STATIS (aspect ratio 1:1 square).
            Gambar harus statis (bukan format video). Pastikan kohesi gaya seni, pencahayaan, dan tema antar slide.
         """
 
         system_instruction = (
             "Anda adalah Master Storyteller dan Art Director kelas dunia untuk 'Pita Cerita'. "
-            "Kekuatan utama konten ini adalah cerita yang menggerakkan hati dan visual statis yang puitis."
+            "Kekuatan utama konten ini adalah cerita yang menggerakkan hati dan visual statis yang puitis. "
+            "Keluaran narasi HANYA berupa cerita final murni tanpa basa-basi."
         )
 
         if not self.gemini.is_configured():
@@ -71,7 +77,7 @@ class PitaCeritaCreator:
 
         # Pastikan jumlah slide 3-5 dengan fallback aman jika respon kosong
         prompts = list(getattr(story_res, "slide_prompts", []) or [])
-        story_caption = getattr(story_res, "story_caption", "") or ""
+        story_caption = clean_ai_caption_fluff(getattr(story_res, "story_caption", "") or "")
         
         if not prompts or not story_caption:
             mock_s = self._get_mock_story(idea)

@@ -9,6 +9,7 @@ from typing import Dict, Any, Tuple
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from agents.creator.ideator import ContentIdea
+from agents.reviewer.self_repair import clean_ai_caption_fluff
 from providers.gemini_client import gemini_client
 from providers.veo_client import veo_client
 from providers.media_finisher import media_finisher
@@ -30,13 +31,13 @@ class PitaTransformasiCreator:
         """
         Menjalankan pipeline pembuatan konten Pita Transformasi.
         """
-        # 1. Rancang Prompt Veo 6-Fase dengan Kontinuitas Visual Ketat
+        # 1. Rancang Prompt Video Veo Progresif 6 Fase
         prompt_instruction = (
-            f"Rancang prompt video photorealistic untuk Google Veo (9:16 aspect ratio).\n"
+            f"Rancang prompt video timelapse Veo 9:16 untuk 'Pita Transformasi'.\n"
             f"Judul: {idea.title}\n"
             f"Konsep: {idea.concept}\n"
-            f"Tema Visual: {idea.visual_theme}\n\n"
-            f"WAJIB MENGIKUTI STRUKTUR 6 FASE TIMELAPSE BERTUTUR:\n"
+            f"Gaya Visual: {idea.visual_theme}\n\n"
+            f"STRUKTUR WAJIB 6 FASE DALAM 1 SHOT SINEMATIK:\n"
             f"1. INITIAL STATE: Kondisi awal objek mentah/rusak/antik.\n"
             f"2. PROCESS: Proses intervensi/pengerjaan dengan presisi.\n"
             f"3. GRADUAL CHANGE: Perubahan bertahap yang dinamis & mulus.\n"
@@ -60,11 +61,17 @@ class PitaTransformasiCreator:
             f"Konsep: {idea.concept}\n"
             f"Panjang: 60-120 kata. Akhiri dengan ajakan interaksi bernada reflektif dan hashtag relevan (#PitaTransformasi #Timelapse #ArtisticTransformation)."
         )
-        caption = await self.gemini.generate_text(
+        caption_raw = await self.gemini.generate_text(
             prompt=caption_prompt,
+            system_instruction=(
+                "Anda adalah copywriter profesional media sosial. Kembalikan HANYA teks caption final murni "
+                "yang siap dipublikasikan tanpa kalimat pengantar, basa-basi, tanda kutip, maupun catatan seperti "
+                "'Berikut adalah draf caption...'. Langsung mulai dari baris pertama naskah."
+            ),
             db_session=db_session,
             job_id=job_id,
         )
+        caption = clean_ai_caption_fluff(caption_raw)
 
         # 3. Render Video via Veo
         raw_video_path = settings.raw_media_dir / f"transformasi_{job_id[:8]}_raw.mp4"

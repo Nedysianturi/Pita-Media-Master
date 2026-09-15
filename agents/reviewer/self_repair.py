@@ -16,6 +16,7 @@ from config.settings import settings
 def clean_ai_caption_fluff(text: str) -> str:
     """
     Membersihkan teks pembuka/pengantar percakapan AI seperti:
+    - 'Berikut adalah draf caption Instagram/TikTok...'
     - 'Berikut adalah hasil perbaikan...'
     - 'Tentu, ini naskah yang telah diperbaiki...'
     - 'Catatan QC:...'
@@ -24,20 +25,28 @@ def clean_ai_caption_fluff(text: str) -> str:
     if not text:
         return ""
     
-    # Hapus baris pengantar AI di awal
+    cleaned = text.strip()
+    
+    # 1. Strip surrounding quotes jika ada
+    if (cleaned.startswith('"') and cleaned.endswith('"')) or (cleaned.startswith("'''") and cleaned.endswith("'''")):
+        cleaned = cleaned.strip('"\'').strip()
+
+    # 2. Hapus baris pengantar AI di awal
     patterns = [
-        r"^(?:berikut|tentu|ini|hasil|catatan|naskah|teks)[^\n]*?(?:perbaikan|self-repair|qc|sesuai|instruksi|disempurnakan)[^\n]*?:?\s*\n+",
-        r"^\*?\*?(?:berikut adalah|ini adalah|hasil perbaikan|revisi)[^\n]*?\*?\*?:?\s*\n+",
+        r"^(?:\*?\*?)?(?:berikut|tentu|ini|hasil|catatan|naskah|teks|draf|opsi)[^\n]*?(?:caption|naskah|draf|perbaikan|self-repair|qc|sesuai|instruksi|disempurnakan|instagram|tiktok|threads|facebook|media sosial)[^\n]*?:?\s*\n+",
+        r"^(?:\*?\*?)?(?:berikut adalah|ini adalah|hasil perbaikan|revisi|draf caption|opsi caption)[^\n]*?(?:\*?\*?)?:?\s*\n+",
         r"^\[REPAIRED\]\s*",
-        r"^\"|\"$"
     ]
     
-    cleaned = text.strip()
     for pat in patterns:
         cleaned = re.sub(pat, "", cleaned, flags=re.IGNORECASE).strip()
     
-    # Hapus catatan di bagian akhir jika ada catatan editor
-    cleaned = re.sub(r"\n\s*(?:catatan|note|perubahan yang dilakukan|diff):.*$", "", cleaned, flags=re.IGNORECASE | re.DOTALL).strip()
+    # Hapus lagi jika masih ada tanda kutip pembuka/penutup setelah baris pengantar terhapus
+    if cleaned.startswith('"') and cleaned.endswith('"'):
+        cleaned = cleaned[1:-1].strip()
+
+    # 3. Hapus catatan di bagian akhir jika ada catatan editor
+    cleaned = re.sub(r"\n\s*(?:catatan[^\n:]*|note[^\n:]*|perubahan yang dilakukan|diff):.*$", "", cleaned, flags=re.IGNORECASE | re.DOTALL).strip()
     
     return cleaned
 
