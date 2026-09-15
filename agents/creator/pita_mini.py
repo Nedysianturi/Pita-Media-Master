@@ -76,6 +76,9 @@ class PitaMiniCreator:
             duration_seconds=5,
             db_session=db_session,
             job_id=job_id,
+            pilar="pita_mini",
+            title=idea.title,
+            mood="satisfying",
         )
 
         processed_video_path = settings.processed_media_dir / f"mini_{job_id[:8]}_final.mp4"
@@ -83,6 +86,8 @@ class PitaMiniCreator:
             input_video_path=generated_video,
             output_video_path=str(processed_video_path),
             watermark_text=settings.SIGNATURE_TEXT,
+            mood="satisfying",
+            duration=5,
         )
 
         return {

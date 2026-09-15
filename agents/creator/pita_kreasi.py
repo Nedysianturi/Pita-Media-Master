@@ -77,6 +77,9 @@ class PitaKreasiCreator:
             duration_seconds=5,
             db_session=db_session,
             job_id=job_id,
+            pilar="pita_kreasi",
+            title=idea.title,
+            mood="inspiratif",
         )
 
         processed_video_path = settings.processed_media_dir / f"kreasi_{job_id[:8]}_final.mp4"
@@ -84,6 +87,8 @@ class PitaKreasiCreator:
             input_video_path=generated_video,
             output_video_path=str(processed_video_path),
             watermark_text=settings.SIGNATURE_TEXT,
+            mood="inspiratif",
+            duration=5,
         )
 
         return {

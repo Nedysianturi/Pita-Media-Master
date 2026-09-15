@@ -37,6 +37,52 @@ class MediaFinisher:
         except Exception as e:
             return f"FFmpeg error: {e}"
 
+    def has_audio_stream(self, video_path: str) -> bool:
+        """Mengecek apakah file video memiliki stream audio."""
+        if not Path(video_path).exists():
+            return False
+        try:
+            cmd = [self.ffmpeg_exe, "-i", str(video_path)]
+            res = subprocess.run(cmd, capture_output=True, text=True)
+            return "Audio:" in (res.stderr or "")
+        except Exception:
+            return False
+
+    def attach_soundtrack(
+        self,
+        input_video_path: str,
+        output_video_path: str,
+        mood: str = "inspiratif",
+        duration: int = 5,
+    ) -> str:
+        """
+        Menambahkan soundtrack latar berkualitas stereo AAC 192k ke video jika belum memiliki audio.
+        """
+        from core.audio.music_manager import music_manager
+
+        audio_expr = music_manager.get_audio_expression_for_mood(mood)
+        fade_out_start = max(1.0, duration - 1.2)
+        af_filter = f"afade=t=in:ss=0:d=0.8,afade=t=out:st={fade_out_start}:d=1.2"
+
+        cmd = [
+            self.ffmpeg_exe,
+            "-y",
+            "-i", str(input_video_path),
+            "-f", "lavfi",
+            "-i", f"aevalsrc={audio_expr}:s=44100:d={duration}",
+            "-c:v", "copy",
+            "-c:a", "aac",
+            "-b:a", "192k",
+            "-af", af_filter,
+            "-shortest",
+            str(output_video_path),
+        ]
+        res = subprocess.run(cmd, capture_output=True, text=True)
+        if res.returncode != 0:
+            import shutil
+            shutil.copy2(input_video_path, output_video_path)
+        return str(output_video_path)
+
     def apply_signature_watermark(
         self,
         input_video_path: str,
@@ -44,60 +90,78 @@ class MediaFinisher:
         watermark_text: Optional[str] = None,
         position: str = "bottom_right",
         opacity: float = 0.85,
+        mood: str = "inspiratif",
+        duration: int = 5,
     ) -> str:
         """
-        Menambahkan logo visual atau teks watermark/signature berkelas pada video.
+        Menambahkan logo visual/teks signature 'Pita Waktu' dan memastikan audio track AAC aktif.
         """
-        if not settings.ENABLE_SIGNATURE_WATERMARK:
-            import shutil
-            shutil.copy2(input_video_path, output_video_path)
-            return output_video_path
+        from core.audio.music_manager import music_manager
 
-        logo_file = Path("storage/logo.png")
-        if logo_file.exists():
-            # Gunakan logo visual resmi
-            overlay_coord = "W-w-35:H-h-35" if position == "bottom_right" else "W-w-35:35"
-            cmd = [
-                self.ffmpeg_exe,
-                "-y",
-                "-i", str(input_video_path),
-                "-i", str(logo_file),
-                "-filter_complex", f"[1:v]scale=150:-1,format=rgba,colorchannelmixer=aa={opacity}[logo];[0:v][logo]overlay={overlay_coord}",
-                "-c:a", "copy",
-                "-c:v", "libx264",
-                "-preset", "fast",
-                "-crf", "22",
-                str(output_video_path),
-            ]
-            res = subprocess.run(cmd, capture_output=True, text=True)
-            if res.returncode == 0:
-                return str(output_video_path)
+        has_audio = self.has_audio_stream(input_video_path)
+        audio_expr = music_manager.get_audio_expression_for_mood(mood)
+        fade_out_start = max(1.0, duration - 1.2)
+        af_filter = f"afade=t=in:ss=0:d=0.8,afade=t=out:st={fade_out_start}:d=1.2"
 
-        # Fallback ke teks watermark jika logo gagal
-        text = watermark_text or settings.SIGNATURE_TEXT
-        if not text:
-            import shutil
-            shutil.copy2(input_video_path, output_video_path)
-            return output_video_path
-
+        text = watermark_text or settings.SIGNATURE_TEXT or "Pita Waktu"
         coord = "x=w-tw-30:y=h-th-30" if position == "bottom_right" else "x=w-tw-30:y=30"
         drawtext_filter = (
             f"drawtext=text='{text}':{coord}:"
             f"fontsize=26:fontcolor=white@{opacity}:"
-            f"shadowcolor=black@0.4:shadowx=2:shadowy=2"
+            f"shadowcolor=black@0.5:shadowx=2:shadowy=2"
         )
 
-        cmd = [
-            self.ffmpeg_exe,
-            "-y",
-            "-i", str(input_video_path),
-            "-vf", drawtext_filter,
-            "-c:a", "copy",
-            "-c:v", "libx264",
-            "-preset", "fast",
-            "-crf", "22",
-            str(output_video_path),
-        ]
+        logo_file = Path("storage/logo.png")
+        if logo_file.exists() and settings.ENABLE_SIGNATURE_WATERMARK:
+            overlay_coord = "W-w-35:H-h-35" if position == "bottom_right" else "W-w-35:35"
+            filter_str = f"[1:v]scale=150:-1,format=rgba,colorchannelmixer=aa={opacity}[logo];[0:v][logo]overlay={overlay_coord}"
+            if has_audio:
+                cmd = [
+                    self.ffmpeg_exe, "-y",
+                    "-i", str(input_video_path),
+                    "-i", str(logo_file),
+                    "-filter_complex", filter_str,
+                    "-c:v", "libx264", "-preset", "fast", "-crf", "22",
+                    "-c:a", "copy",
+                    str(output_video_path),
+                ]
+            else:
+                cmd = [
+                    self.ffmpeg_exe, "-y",
+                    "-i", str(input_video_path),
+                    "-i", str(logo_file),
+                    "-f", "lavfi", "-i", f"aevalsrc={audio_expr}:s=44100:d={duration}",
+                    "-filter_complex", filter_str,
+                    "-c:v", "libx264", "-preset", "fast", "-crf", "22",
+                    "-c:a", "aac", "-b:a", "192k", "-af", af_filter,
+                    "-shortest",
+                    str(output_video_path),
+                ]
+            res = subprocess.run(cmd, capture_output=True, text=True)
+            if res.returncode == 0:
+                return str(output_video_path)
+
+        # Gunakan filter drawtext + synthesize audio jika audio stream belum ada
+        if has_audio:
+            cmd = [
+                self.ffmpeg_exe, "-y",
+                "-i", str(input_video_path),
+                "-vf", drawtext_filter,
+                "-c:v", "libx264", "-preset", "fast", "-crf", "22",
+                "-c:a", "copy",
+                str(output_video_path),
+            ]
+        else:
+            cmd = [
+                self.ffmpeg_exe, "-y",
+                "-i", str(input_video_path),
+                "-f", "lavfi", "-i", f"aevalsrc={audio_expr}:s=44100:d={duration}",
+                "-vf", drawtext_filter,
+                "-c:v", "libx264", "-preset", "fast", "-crf", "22",
+                "-c:a", "aac", "-b:a", "192k", "-af", af_filter,
+                "-shortest",
+                str(output_video_path),
+            ]
 
         res = subprocess.run(cmd, capture_output=True, text=True)
         if res.returncode != 0:

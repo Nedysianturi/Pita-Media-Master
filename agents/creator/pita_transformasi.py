@@ -73,7 +73,7 @@ class PitaTransformasiCreator:
         )
         caption = clean_ai_caption_fluff(caption_raw)
 
-        # 3. Render Video via Veo
+        # 3. Render Video via Veo / Visual Animator dengan Audio Soundtrack
         raw_video_path = settings.raw_media_dir / f"transformasi_{job_id[:8]}_raw.mp4"
         generated_video = await self.veo.generate_video(
             prompt=veo_prompt,
@@ -82,14 +82,19 @@ class PitaTransformasiCreator:
             duration_seconds=5,
             db_session=db_session,
             job_id=job_id,
+            pilar="pita_transformasi",
+            title=idea.title,
+            mood="inspiratif",
         )
 
-        # 4. Finishing dengan FFmpeg (Watermark 'Pita Waktu' & Normalisasi 9:16)
+        # 4. Finishing dengan FFmpeg (Watermark 'Pita Waktu', Soundtrack AAC & Normalisasi 9:16)
         processed_video_path = settings.processed_media_dir / f"transformasi_{job_id[:8]}_final.mp4"
         final_video = self.finisher.apply_signature_watermark(
             input_video_path=generated_video,
             output_video_path=str(processed_video_path),
             watermark_text=settings.SIGNATURE_TEXT,
+            mood="inspiratif",
+            duration=5,
         )
 
         return {
