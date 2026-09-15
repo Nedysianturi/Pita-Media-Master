@@ -9,20 +9,22 @@ from pathlib import Path
 import pytest
 import pytest_asyncio
 from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, AsyncSession
-from sqlalchemy import select
+from sqlalchemy import select, delete
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from database.models import Base, Job, Content, Publication, QCRecord, Provenance
-from database.connection import init_db, async_session_factory
+from database.connection import init_db, async_session_factory, engine
 from core.scheduler import content_orchestrator
 
 
 @pytest.mark.asyncio
 async def test_full_autonomous_content_cycle():
     """Menguji siklus penuh pembuatan konten mandiri end-to-end."""
-    # 1. Inisialisasi DB
-    await init_db()
+    # 1. Inisialisasi DB & bersihkan record uji coba secara bersih
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.drop_all)
+        await conn.run_sync(Base.metadata.create_all)
 
     # 2. Jadwalkan slot konten untuk Pita Cerita
     job = await content_orchestrator.schedule_next_content_slot(pilar="pita_cerita")

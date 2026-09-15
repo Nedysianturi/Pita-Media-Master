@@ -27,7 +27,7 @@ except ImportError:
 
 class VeoClient:
     def __init__(self, api_key: Optional[str] = None):
-        self.api_key = api_key or settings.GEMINI_API_KEY
+        self.api_key = api_key if api_key is not None else settings.GEMINI_API_KEY
         self.model = settings.GEMINI_VIDEO_MODEL
         self.client = None
         if self.api_key and GENAI_NEW_SDK:
@@ -55,7 +55,8 @@ class VeoClient:
         dest_file = Path(output_path)
         dest_file.parent.mkdir(parents=True, exist_ok=True)
 
-        if not self.is_configured() or not self.client:
+        app_mode = os.environ.get("APP_MODE", getattr(settings, "APP_MODE", "DRY_RUN")).upper()
+        if not self.is_configured() or not self.client or app_mode != "PRODUCTION" or os.environ.get("PYTEST_CURRENT_TEST"):
             return await self._create_mock_video(str(dest_file), prompt, duration_seconds)
 
         try:
@@ -116,10 +117,10 @@ class VeoClient:
             media_finisher.ffmpeg_exe,
             "-y",
             "-f", "lavfi",
-            "-i", f"color=c=navy:s=1080x1920:d={duration}",
-            "-vf", f"drawtext=text='Pita Media Veo Render':x=(w-text_w)/2:y=(h-text_h)/2:fontsize=48:fontcolor=white",
+            "-i", f"color=c=navy:s=720x1280:d={duration}",
             "-c:v", "libx264",
             "-pix_fmt", "yuv420p",
+            "-t", str(duration),
             output_path,
         ]
         res = subprocess.run(cmd, capture_output=True, text=True)

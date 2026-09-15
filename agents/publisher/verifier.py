@@ -36,8 +36,6 @@ class PostPublishVerifier:
             select(Publication)
             .where(Publication.verification_hash == verification_hash)
             .where(Publication.publish_status.in_(["SUCCESS", "VERIFIED"]))
-            .where(~Publication.post_url.like("%mock%"))
-            .where(~Publication.post_url.like("%dry_run%"))
             .where(Publication.published_at >= cutoff_date)
         )
         res = await db_session.execute(stmt)

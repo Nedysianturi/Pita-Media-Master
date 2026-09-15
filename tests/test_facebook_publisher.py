@@ -85,13 +85,15 @@ async def test_facebook_publish_video(sample_temp_video):
 @pytest.mark.asyncio
 async def test_publisher_agent_dispatches_to_facebook(sample_temp_image):
     agent = PublisherAgent()
-    agent.publishers["facebook"].publish_content = lambda payload, dry_run=True: {
-        "success": True,
+    agent.publishers["facebook"].publish = AsyncMock(return_value={
         "platform": "facebook",
+        "status": "PUBLISHED",
+        "external_post_id": "post_777",
         "post_id": "post_777",
         "permalink": "https://www.facebook.com/post_777",
-        "status": "PUBLISHED",
-    }
+        "response_metadata": {"simulated": True},
+        "error_message": None,
+    })
 
     payload = {
         "title": "Kisah Haru",

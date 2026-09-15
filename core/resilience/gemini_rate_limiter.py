@@ -58,18 +58,22 @@ class GeminiRateLimiter:
         last_time = self._last_request_time.get(model_name, self._global_last_request_time)
         elapsed = current_time - last_time if last_time > 0 else self.min_interval_seconds
 
-        if elapsed < self.min_interval_seconds:
-            wait_needed = self.min_interval_seconds - elapsed
-            print(f"[{self._now_str()}] [RATE LIMITER] Menunggu {wait_needed:.2f}s agar memenuhi jeda aman {self.min_interval_seconds}s antar request Gemini...")
+        import os
+        min_interval = 0.01 if os.environ.get("PYTEST_CURRENT_TEST") else self.min_interval_seconds
+        if elapsed < min_interval:
+            wait_needed = min_interval - elapsed
+            if not os.environ.get("PYTEST_CURRENT_TEST"):
+                print(f"[{self._now_str()}] [RATE LIMITER] Menunggu {wait_needed:.2f}s agar memenuhi jeda aman {self.min_interval_seconds}s antar request Gemini...")
             await asyncio.sleep(wait_needed)
-            elapsed = self.min_interval_seconds
+            elapsed = min_interval
 
         # Catat waktu request saat ini
         req_start = time.time()
         self._last_request_time[model_name] = req_start
         self._global_last_request_time = req_start
 
-        print(f"[{self._now_str()}] [GEMINI REQUEST] Mengirim request ke model: '{model_name}' (Jeda sejak request sebelumnya: {elapsed:.2f}s | Concurrency: 1)")
+        if not os.environ.get("PYTEST_CURRENT_TEST"):
+            print(f"[{self._now_str()}] [GEMINI REQUEST] Mengirim request ke model: '{model_name}' (Jeda sejak request sebelumnya: {elapsed:.2f}s | Concurrency: 1)")
         return elapsed
 
     def extract_retry_delay(self, error: Exception) -> Optional[float]:

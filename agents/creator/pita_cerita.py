@@ -97,7 +97,7 @@ class PitaCeritaCreator:
 
         # Format caption akhir dengan hashtag
         full_caption = (
-            f"{story_res.story_caption}\n\n"
+            f"{story_caption}\n\n"
             f"· · ·\n"
             f"#PitaCerita #KisahBermakna #VisualStorytelling #RefleksiWaktu #PitaMedia"
         )
@@ -108,7 +108,7 @@ class PitaCeritaCreator:
             "media_type": "carousel",
             "media_paths": image_paths,
             "raw_prompts": {
-                "story_caption_length": len(story_res.story_caption.split()),
+                "story_caption_length": len(story_caption.split()),
                 "slide_prompts": prompts,
             },
             "model_name": settings.GEMINI_IMAGE_MODEL,

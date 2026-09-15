@@ -21,7 +21,15 @@ async def test_creator_agent_all_four_pillars():
 
     for pilar in pillars:
         job_id = f"test_job_{pilar}"
-        payload = await creator_agent.produce_content(pilar=pilar, job_id=job_id)
+        idea = ContentIdea(
+            pilar=pilar,
+            title=f"Eksplorasi Mahakarya {pilar}",
+            concept=f"Konsep visual mendalam untuk pilar {pilar}",
+            target_audience="Pecinta estetika",
+            visual_theme="Cinematic",
+            is_exploration=False,
+        )
+        payload = await creator_agent.produce_content(pilar=pilar, job_id=job_id, custom_idea=idea)
 
         assert payload["pilar"] == pilar
         assert payload["title"] is not None
@@ -34,6 +42,7 @@ async def test_creator_agent_all_four_pillars():
             assert len(payload["media_paths"]) >= 3  # Minimal 3 gambar statis
         elif pilar in ["pita_transformasi", "pita_mini", "pita_kreasi"]:
             assert payload["media_type"] == "video"
+
 
 
 @pytest.mark.asyncio

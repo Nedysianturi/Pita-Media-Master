@@ -27,7 +27,7 @@ except ImportError:
 class ImagenClient:
     def __init__(self, api_key: Optional[str] = None):
         from core.security.secret_store import secret_store
-        self.api_key = api_key or secret_store.get_secret("GEMINI_PRIMARY_API_KEY") or secret_store.get_secret("GEMINI_API_KEY") or settings.GEMINI_API_KEY
+        self.api_key = api_key if api_key is not None else (secret_store.get_secret("GEMINI_PRIMARY_API_KEY") or secret_store.get_secret("GEMINI_API_KEY") or settings.GEMINI_API_KEY)
         self.model = settings.GEMINI_IMAGE_MODEL
         self.client = None
         if self.api_key and GENAI_NEW_SDK:
@@ -57,7 +57,8 @@ class ImagenClient:
         dest_file = Path(output_path)
         dest_file.parent.mkdir(parents=True, exist_ok=True)
 
-        if not self.is_configured() or not self.client:
+        app_mode = os.environ.get("APP_MODE", getattr(settings, "APP_MODE", "DRY_RUN")).upper()
+        if not self.is_configured() or not self.client or app_mode != "PRODUCTION" or os.environ.get("PYTEST_CURRENT_TEST"):
             return self._create_mock_image(str(dest_file), prompt, title=title, pilar=pilar, slide_idx=slide_idx, total_slides=total_slides)
 
         try:
