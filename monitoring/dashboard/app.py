@@ -2064,8 +2064,9 @@ async def serve_dashboard(_: bool = Depends(verify_dashboard_access)):
 
             <!-- High Visibility Visual Box -->
             <div style="background: rgba(0,0,0,0.55); border: 1px solid var(--border); border-radius: 12px; padding: 12px; margin-bottom: 14px; display: flex; flex-direction: column; align-items: center;">
-                <div id="prev-media-box" style="width: 100%; max-height: 320px; min-height: 180px; border-radius: 8px; overflow: hidden; display: flex; align-items: center; justify-content: center; background: #000; cursor: zoom-in;" onclick="window.open(document.getElementById('prev-img').src, '_blank')" title="Klik untuk membuka gambar resolusi penuh di tab baru">
-                    <img id="prev-img" src="" style="max-width: 100%; max-height: 320px; object-fit: contain; display: block;" onerror="this.style.display='none'; document.getElementById('prev-fallback-icon').style.display='flex';">
+                <div id="prev-media-box" style="width: 100%; max-height: 340px; min-height: 180px; border-radius: 8px; overflow: hidden; display: flex; align-items: center; justify-content: center; background: #000; position: relative;">
+                    <video id="prev-video" controls autoplay muted playsinline style="max-width: 100%; max-height: 340px; display: none; border-radius: 6px;"></video>
+                    <img id="prev-img" src="" style="max-width: 100%; max-height: 340px; object-fit: contain; display: none; cursor: zoom-in;" onclick="window.open(this.src, '_blank')" title="Klik untuk membuka gambar resolusi penuh di tab baru">
                     <div id="prev-fallback-icon" style="font-size: 3rem; display: none; align-items: center; justify-content: center; height: 160px; color: #60A5FA;">📘</div>
                 </div>
                 
@@ -2237,7 +2238,7 @@ async def serve_dashboard(_: bool = Depends(verify_dashboard_access)):
                     <tr class="table-row-hover">
                         <td style="width: 50px;">
                             <div class="media-thumb-container" onclick="openPostPreview('${{p.id}}')" style="cursor:pointer;" title="Klik untuk pratinjau visual">
-                                ${{p.preview_url ? `<img src="${{p.preview_url}}" class="media-thumb-img" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">` : ''}}
+                                ${{p.preview_url ? (p.preview_url.endsWith('.mp4') ? `<video src="${{p.preview_url}}" class="media-thumb-img" muted playsinline loop onmouseover="this.play()" onmouseout="this.pause()"></video>` : `<img src="${{p.preview_url}}" class="media-thumb-img" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">`) : ''}}
                                 <div class="media-fallback-badge" style="${{p.preview_url ? 'display:none;' : 'display:flex;'}}">
                                     ${{icon}}
                                 </div>
@@ -2267,22 +2268,48 @@ async def serve_dashboard(_: bool = Depends(verify_dashboard_access)):
         }}
 
         window.currentRecentPubs = {initial_pubs_json};
+        window.currentContents = [];
 
-        function openPostPreview(pubId) {{
-            const p = window.currentRecentPubs.find(item => item.id === pubId || item.content_id === pubId);
+        function selectPreviewSlide(url, el) {{
+            const v = document.getElementById('prev-video');
+            if (v) {{
+                v.style.display = 'none';
+                v.pause();
+            }}
+            const img = document.getElementById('prev-img');
+            if (img) {{
+                img.src = url;
+                img.style.display = 'block';
+            }}
+            const fb = document.getElementById('prev-fallback-icon');
+            if (fb) fb.style.display = 'none';
+            document.querySelectorAll('#prev-slides-row > div').forEach(d => d.style.borderColor = 'var(--border)');
+            if (el) el.style.borderColor = '#3B82F6';
+        }}
+
+        async function openPostPreview(pubId) {{
+            let p = (window.currentRecentPubs || []).find(item => item.id === pubId || item.content_id === pubId);
+            if (!p) {{
+                p = (window.currentContents || []).find(item => item.id === pubId);
+            }}
+            if (!p) {{
+                await pollStats();
+                p = (window.currentRecentPubs || []).find(item => item.id === pubId || item.content_id === pubId);
+            }}
             if (!p) return;
 
             document.getElementById('prev-title').innerText = p.title || 'Tanpa Judul';
-            document.getElementById('prev-pilar-badge').innerHTML = `<span class="pilar-pill">#${{p.pilar || 'pita_waktu'}}</span>`;
-            document.getElementById('prev-date').innerText = p.published_at || '-';
+            const pilarName = p.pilar || 'pita_waktu';
+            document.getElementById('prev-pilar-badge').innerHTML = `<span class="pilar-pill">#${{pilarName}}</span>`;
+            document.getElementById('prev-date').innerText = p.published_at || p.created_at || 'Siap Diterbitkan';
             
-            const isSim = p.is_simulated || (p.post_url && (p.post_url.includes('.mock') || p.post_url.includes('dry_run')));
+            const isSim = p.is_simulated || (p.post_url && (p.post_url.includes('.mock') || p.post_url.includes('dry_run'))) || !p.post_url;
             const isFailed = p.status === 'FAILED';
             
             if (isFailed) {{
                 document.getElementById('prev-status').innerHTML = '<span style="color:#EF4444;">🔴 GAGAL</span>';
             }} else if (isSim) {{
-                document.getElementById('prev-status').innerHTML = '<span style="color:#60A5FA;">⚡ SIMULASI (Dry Run - Tersimpan Lokal)</span>';
+                document.getElementById('prev-status').innerHTML = '<span style="color:#60A5FA;">⚡ SIMULASI (Dry Run - Siap Tayang)</span>';
             }} else {{
                 document.getElementById('prev-status').innerHTML = '<span style="color:#10B981;">🟢 LIVE TERBIT (Facebook Fanspage)</span>';
             }}
@@ -2301,24 +2328,47 @@ async def serve_dashboard(_: bool = Depends(verify_dashboard_access)):
             document.getElementById('prev-plat-name').innerText = 'Platform: ' + (p.platform ? p.platform.toUpperCase() : 'FACEBOOK');
 
             const imgEl = document.getElementById('prev-img');
+            const videoEl = document.getElementById('prev-video');
             const fallbackEl = document.getElementById('prev-fallback-icon');
-            if (p.preview_url) {{
-                imgEl.src = p.preview_url;
-                imgEl.style.display = 'block';
-                fallbackEl.style.display = 'none';
+            const mediaList = p.media_urls || (p.preview_url ? [p.preview_url] : []);
+            const firstMedia = mediaList.length > 0 ? mediaList[0] : (p.preview_url || '');
+
+            const isVideo = firstMedia.toLowerCase().endsWith('.mp4') || (p.media_type === 'video');
+
+            if (isVideo && firstMedia) {{
+                if (videoEl) {{
+                    videoEl.src = firstMedia;
+                    videoEl.style.display = 'block';
+                    videoEl.load();
+                }}
+                if (imgEl) imgEl.style.display = 'none';
+                if (fallbackEl) fallbackEl.style.display = 'none';
+            }} else if (firstMedia) {{
+                if (videoEl) {{
+                    videoEl.pause();
+                    videoEl.style.display = 'none';
+                }}
+                if (imgEl) {{
+                    imgEl.src = firstMedia;
+                    imgEl.style.display = 'block';
+                }}
+                if (fallbackEl) fallbackEl.style.display = 'none';
             }} else {{
-                imgEl.style.display = 'none';
-                fallbackEl.style.display = 'flex';
-                fallbackEl.innerText = p.platform === 'facebook' ? '📘' : (p.platform === 'instagram' ? '📸' : '🧵');
+                if (videoEl) {{ videoEl.pause(); videoEl.style.display = 'none'; }}
+                if (imgEl) imgEl.style.display = 'none';
+                if (fallbackEl) {{
+                    fallbackEl.style.display = 'flex';
+                    fallbackEl.innerText = pilarName.includes('cerita') ? '📖' : (pilarName.includes('transformasi') ? '✨' : '🎬');
+                }}
             }}
 
             // Render all slides if carousel
             const galleryRow = document.getElementById('prev-slides-row');
             const galleryContainer = document.getElementById('prev-carousel-gallery');
-            if (p.media_urls && p.media_urls.length > 0) {{
+            if (mediaList && mediaList.length > 1) {{
                 galleryContainer.style.display = 'block';
-                galleryRow.innerHTML = p.media_urls.map((url, idx) => `
-                    <div style="width:72px; height:72px; border-radius:8px; overflow:hidden; border:2px solid ${{idx===0 ? '#3B82F6' : 'var(--border)'}}; flex-shrink:0; cursor:pointer;" onclick="document.getElementById('prev-img').src='${{url}}'; document.getElementById('prev-img').style.display='block'; document.getElementById('prev-fallback-icon').style.display='none'; document.querySelectorAll('#prev-slides-row > div').forEach(d => d.style.borderColor='var(--border)'); this.style.borderColor='#3B82F6';" title="Klik Slide ${{idx+1}}">
+                galleryRow.innerHTML = mediaList.map((url, idx) => `
+                    <div style="width:72px; height:72px; border-radius:8px; overflow:hidden; border:2px solid ${{idx===0 ? '#3B82F6' : 'var(--border)'}}; flex-shrink:0; cursor:pointer;" onclick="selectPreviewSlide('${{url}}', this)" title="Klik Slide ${{idx+1}}">
                         <img src="${{url}}" style="width:100%; height:100%; object-fit:cover;">
                     </div>
                 `).join('');
@@ -2328,24 +2378,33 @@ async def serve_dashboard(_: bool = Depends(verify_dashboard_access)):
 
             document.getElementById('prev-sim-alert').style.display = isSim ? 'flex' : 'none';
 
-            const liveBtn = document.getElementById('prev-live-btn');
-            if (isSim) {{
-                liveBtn.innerHTML = '🚀 Publikasikan Langsung ke Facebook';
-                liveBtn.style.display = 'inline-flex';
-                liveBtn.onclick = () => {{ publishNow(p.content_id || p.id); }};
-            }} else if (p.post_url && p.post_url !== '#' && !isFailed) {{
-                liveBtn.innerHTML = '↗ Buka Post Facebook Asli';
-                liveBtn.style.display = 'inline-flex';
-                liveBtn.onclick = () => {{ window.open(p.post_url, '_blank'); }};
-            }} else {{
-                liveBtn.style.display = 'none';
+            window.currentPreviewContentId = p.content_id || p.id;
+            const liveBtn = document.getElementById('prev-btn-publish');
+            if (liveBtn) {{
+                if (isSim) {{
+                    liveBtn.innerHTML = '🚀 Terbitkan Sekarang ke Facebook';
+                    liveBtn.style.display = 'inline-flex';
+                    liveBtn.onclick = () => {{ publishNow(p.content_id || p.id); }};
+                }} else if (p.post_url && p.post_url !== '#' && !isFailed) {{
+                    liveBtn.innerHTML = '↗ Buka Post Facebook Asli';
+                    liveBtn.style.display = 'inline-flex';
+                    liveBtn.onclick = () => {{ window.open(p.post_url, '_blank'); }};
+                }} else {{
+                    liveBtn.style.display = 'none';
+                }}
             }}
 
             document.getElementById('modal-post-preview').style.display = 'flex';
         }}
 
+        function publishCurrentPreviewNow() {{
+            if (window.currentPreviewContentId) {{
+                publishNow(window.currentPreviewContentId);
+            }}
+        }}
+
         async function publishNow(contentId) {{
-            const btn = document.getElementById('prev-live-btn');
+            const btn = document.getElementById('prev-btn-publish');
             if (btn) {{
                 btn.innerHTML = '⏳ Menerbitkan ke Facebook...';
                 btn.disabled = true;
@@ -2373,7 +2432,7 @@ async def serve_dashboard(_: bool = Depends(verify_dashboard_access)):
                 showToast('🔴 Eror: ' + e.message);
             }} finally {{
                 if (btn) {{
-                    btn.innerHTML = '🚀 Publikasikan Langsung ke Facebook';
+                    btn.innerHTML = '🚀 Terbitkan Sekarang ke Facebook';
                     btn.disabled = false;
                 }}
             }}

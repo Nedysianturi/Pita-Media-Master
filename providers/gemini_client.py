@@ -48,6 +48,7 @@ class GeminiClient:
         self.current_key_idx = 0
         self.rate_limiter = gemini_rate_limiter
         self.client = None
+        self._exhausted_models: Dict[str, float] = {}
         self._init_client()
 
     def _init_client(self):
@@ -92,6 +93,13 @@ class GeminiClient:
         Model dipilih murni dari parameter atau .env (settings.GEMINI_TEXT_MODEL).
         """
         target_model = model or settings.GEMINI_TEXT_MODEL
+        now = time.time()
+        if target_model in self._exhausted_models and self._exhausted_models[target_model] > now:
+            pool = ["gemini-flash-lite-latest", "gemini-flash-latest", "gemini-3.6-flash"]
+            for alt in pool:
+                if alt not in self._exhausted_models or self._exhausted_models[alt] <= now:
+                    target_model = alt
+                    break
 
         if not self.is_configured() or not self.client:
             return f"[MOCK TEXT RESPONSE]: Narasi estetika untuk {prompt[:40]}..."
@@ -155,23 +163,25 @@ class GeminiClient:
 
                     # Jika 429 RESOURCE_EXHAUSTED:
                     if "429" in err_msg or "RESOURCE_EXHAUSTED" in err_msg or "quota" in err_msg.lower():
+                        # Catat model ini exhausted selama 30 menit
+                        self._exhausted_models[target_model] = time.time() + 1800
+
                         # Jika ada API Key cadangan, rotasi ke key berikutnya terlebih dahulu
                         if self.rotate_key() and attempt < max_retries:
                             attempt += 1
                             await asyncio.sleep(1.0)
                             continue
 
-                        # Jika kuota harian model tersebut habis (PerDay / limit: 20), beralih ke model alternatif
-                        if "perday" in err_msg.lower() or "limit: 20" in err_msg:
-                            pool = ["gemini-3.6-flash", "gemini-flash-latest", "gemini-flash-lite-latest", "gemini-pro-latest"]
-                            next_models = [m for m in pool if m != target_model]
-                            if next_models and attempt < max_retries:
-                                next_model = next_models[(attempt - 1) % len(next_models)]
-                                logger.warning(f"Kuota harian untuk model '{target_model}' tercapai. Mengalihkan otomatis ke model alternatif '{next_model}'...")
-                                target_model = next_model
-                                attempt += 1
-                                await asyncio.sleep(2.0)
-                                continue
+                        # Jika kuota harian model tersebut habis (PerDay / limit: 20), langsung alihkan ke model alternatif
+                        pool = ["gemini-flash-lite-latest", "gemini-flash-latest", "gemini-3.6-flash", "gemini-pro-latest"]
+                        next_models = [m for m in pool if m != target_model and (m not in self._exhausted_models or self._exhausted_models[m] <= time.time())]
+                        if next_models and attempt < max_retries:
+                            next_model = next_models[0]
+                            logger.warning(f"Kuota harian untuk model '{target_model}' tercapai. Mengalihkan otomatis ke model alternatif '{next_model}'...")
+                            target_model = next_model
+                            attempt += 1
+                            await asyncio.sleep(1.0)
+                            continue
 
                         if attempt < max_retries:
                             await self.rate_limiter.handle_429_backoff(target_model, e, attempt)
