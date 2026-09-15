@@ -21,6 +21,7 @@ from core.runtime.persistent_scheduler import persistent_scheduler
 from monitoring.telegram_bot import telegram_c2
 
 from core.runtime.control_bus import control_bus
+from core.security.credential_manager import credential_manager
 
 logger = logging.getLogger("pita.runtime.supervisor")
 
@@ -103,6 +104,36 @@ class DaemonSupervisor:
                 logger.critical("Startup self-check encountered fatal failures. Aborting startup.")
                 instance_lock.release()
                 sys.exit(1)
+
+        # 4.5. Restore and verify persisted operating mode (DRY_RUN vs PRODUCTION)
+        persisted_mode = os.environ.get("APP_MODE") or credential_manager.read_env_file().get("APP_MODE", "DRY_RUN")
+        if str(persisted_mode).upper() == "PRODUCTION":
+            from core.security.secret_store import secret_store
+            from config.settings import settings
+            from core.runtime.storage_guard import storage_guard
+            
+            env_data = credential_manager.read_env_file()
+            meta_tok = bool(secret_store.get_secret("META_SYSTEM_USER_TOKEN"))
+            fb_page_id = bool(env_data.get("FB_PAGE_ID") or getattr(settings, "FB_PAGE_ID", ""))
+            ai_key = bool(secret_store.get_secret("GEMINI_PRIMARY_API_KEY") or secret_store.get_secret("XAI_API_KEY"))
+            disk = storage_guard.check_disk_usage()
+            
+            preflight_passed = meta_tok and fb_page_id and ai_key and (not secret_store.is_safe_mode) and (disk.get("status") != "CRITICAL")
+            if preflight_passed:
+                os.environ["APP_MODE"] = "PRODUCTION"
+                logger.info("Persisted APP_MODE is PRODUCTION and preflight PASSED. Resuming 24/7 PRODUCTION mode automatically.")
+            else:
+                os.environ["APP_MODE"] = "DRY_RUN"
+                reasons = []
+                if not meta_tok: reasons.append("META_SYSTEM_USER_TOKEN missing")
+                if not fb_page_id: reasons.append("FB_PAGE_ID missing")
+                if not ai_key: reasons.append("AI key missing")
+                if secret_store.is_safe_mode: reasons.append("Vault in safe mode")
+                if disk.get("status") == "CRITICAL": reasons.append("Disk critical")
+                logger.warning(f"Persisted APP_MODE was PRODUCTION but preflight failed ({', '.join(reasons)}). Entering safe state (DRY_RUN).")
+        else:
+            os.environ["APP_MODE"] = "DRY_RUN"
+            logger.info("Operating mode initialized as DRY_RUN (Simulated Sandbox).")
 
         # 5. Take initial database backup
         self.storage_maint.backup_database()
