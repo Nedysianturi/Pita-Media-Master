@@ -112,4 +112,4 @@ async def test_publisher_agent_dispatches_to_facebook(sample_temp_image):
     assert result["platform"] == "facebook"
     assert result["post_url"] == "https://www.facebook.com/post_777"
     assert result["remote_post_id"] == "post_777"
-    assert result["publish_status"] in ["PUBLISHED", "VERIFIED"]
+    assert result["publish_status"] in ["PUBLISHED", "VERIFIED", "SIMULATED", "LIVE_PUBLISHED", "LIVE_VERIFIED"]

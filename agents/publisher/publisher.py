@@ -19,6 +19,7 @@ from agents.publisher.instagram_publisher import InstagramPublisher
 from agents.publisher.threads_publisher import ThreadsPublisher
 from agents.publisher.post_verifier import post_verifier
 from providers.facebook_client import facebook_client
+from core.security.credential_manager import credential_manager
 from config.settings import settings
 
 logger = logging.getLogger("pita_media.publisher")
@@ -38,6 +39,28 @@ class PublisherAgent:
     def get_app_mode(self) -> str:
         """Fetch current global APP_MODE: DRY_RUN or PRODUCTION."""
         return os.environ.get("APP_MODE", getattr(settings, "APP_MODE", "DRY_RUN")).upper()
+
+    def get_configured_platforms(self) -> List[str]:
+        """Menemukan seluruh platform medsos yang aktif dan terkonfigurasi (Facebook, Instagram, Threads)."""
+        active = []
+        # 1. Facebook
+        fb_creds = credential_manager.get_credential("meta_facebook") or {}
+        if fb_creds.get("access_token") or getattr(settings, "FB_PAGE_ACCESS_TOKEN", None) or getattr(settings, "META_SYSTEM_USER_TOKEN", None):
+            active.append("facebook")
+        
+        # 2. Instagram
+        ig_creds = credential_manager.get_credential("meta_instagram") or {}
+        if ig_creds.get("access_token") or getattr(settings, "INSTAGRAM_ACCOUNT_ID", None) or getattr(settings, "FB_PAGE_ACCESS_TOKEN", None) or getattr(settings, "META_SYSTEM_USER_TOKEN", None):
+            active.append("instagram")
+
+        # 3. Threads
+        th_creds = credential_manager.get_credential("meta_threads") or credential_manager.get_credential("meta_facebook") or {}
+        if th_creds.get("access_token") or getattr(settings, "THREADS_ACCESS_TOKEN", None) or getattr(settings, "META_SYSTEM_USER_TOKEN", None) or getattr(settings, "FB_PAGE_ACCESS_TOKEN", None):
+            active.append("threads")
+
+        if not active:
+            active = ["facebook", "instagram", "threads"]
+        return active
 
     async def publish_content(
         self,
@@ -95,7 +118,7 @@ class PublisherAgent:
             elif platform == "all":
                 target_platforms = ["facebook", "instagram", "threads"]
             else:
-                target_platforms = ["facebook"]
+                target_platforms = self.get_configured_platforms()
 
         platform_results = {}
         primary_post_url = ""
@@ -133,13 +156,15 @@ class PublisherAgent:
                         content_payload=content_payload,
                         is_dry_run=is_dry_run,
                     )
+                    post_id = raw_res.get("external_post_id") or raw_res.get("post_id")
+                    permalink = raw_res.get("permalink")
                     if is_dry_run:
                         status = "SIMULATED"
-                        post_id = None
-                        permalink = f"https://pita-media.simulated/{target}/{content_id[:8]}"
+                        if not permalink:
+                            permalink = f"https://pita-media.simulated/{target}/{content_id[:8]}"
                     else:
-                        post_id = raw_res.get("external_post_id") or raw_res.get("post_id", "")
-                        permalink = raw_res.get("permalink") or ""
+                        post_id = post_id or ""
+                        permalink = permalink or ""
                         raw_st = raw_res.get("status", "PUBLISHED")
                         status = "LIVE_VERIFIED" if raw_st in ["VERIFIED", "LIVE_VERIFIED"] else "LIVE_PUBLISHED"
 
@@ -154,13 +179,13 @@ class PublisherAgent:
                     }
                 else:
                     raw_res = pub.publish_content(content_payload, dry_run=is_dry_run)
+                    post_id = raw_res.get("post_id")
+                    permalink = raw_res.get("permalink")
                     if is_dry_run:
                         status = "SIMULATED"
-                        post_id = None
-                        permalink = f"https://pita-media.simulated/{target}/{content_id[:8]}"
+                        if not permalink:
+                            permalink = f"https://pita-media.simulated/{target}/{content_id[:8]}"
                     else:
-                        post_id = raw_res.get("post_id", "")
-                        permalink = raw_res.get("permalink", "")
                         status = "LIVE_PUBLISHED"
                     res = {
                         "success": True,

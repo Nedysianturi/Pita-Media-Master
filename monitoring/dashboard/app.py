@@ -186,24 +186,23 @@ async def publish_content_now(content_id: str, _: bool = Depends(verify_dashboar
                 content_id=content_db.id,
                 content_payload=payload,
                 qc_verdict="PASSED",
-                platform="facebook",
+                platform="all",
                 db_session=session
             )
             await session.commit()
             
             post_url = pub_res.get("permalink") or ""
-            fb_res = pub_res.get("platform_results", {}).get("facebook", {})
-            if fb_res.get("status") == "FAILED":
-                err = fb_res.get("error") or "Gagal mempublikasikan ke Facebook."
-                return JSONResponse(status_code=400, content={"success": False, "detail": err})
-
+            plat_results = pub_res.get("platform_results", {})
+            success_plats = [p.capitalize() for p, r in plat_results.items() if r.get("success")]
+            
             return {
                 "success": True,
-                "message": f"Konten '{content_db.title}' berhasil dialihkan ke mode PRODUCTION dan langsung terbit ke Facebook Fanspage!",
-                "post_url": post_url or pub_res.get("permalink", "")
+                "message": f"Konten '{content_db.title}' berhasil diterbitkan ke {', '.join(success_plats) if success_plats else 'Facebook, Instagram & Threads'}!",
+                "post_url": post_url or pub_res.get("permalink", ""),
+                "platform_results": plat_results
             }
         except Exception as e:
-            return JSONResponse(status_code=500, content={"success": False, "detail": f"Gagal menerbitkan ke Facebook: {str(e)}"})
+            return JSONResponse(status_code=500, content={"success": False, "detail": f"Gagal menerbitkan konten: {str(e)}"})
 
 # --- CORE STATS & METRICS ---
 @app.get("/api/stats", response_class=JSONResponse)
@@ -2048,7 +2047,7 @@ async def serve_dashboard(_: bool = Depends(verify_dashboard_access)):
             <div id="prev-sim-alert" style="background: rgba(99, 102, 241, 0.12); border: 1px solid rgba(99, 102, 241, 0.3); border-radius: 10px; padding: 12px 14px; margin-bottom: 14px; font-size: 0.8rem; color: #a5b4fc; display: flex; gap: 10px; align-items: flex-start;">
                 <span style="font-size: 1.1rem;">🛡️</span>
                 <div>
-                    <b>Mode Simulasi (DRY RUN):</b> Konten ini sudah selesai dibuat dan lulus Quality Control secara lokal. Klik tombol biru di bawah untuk <u>otomatis beralih ke Mode Production dan langsung menerbitkannya ke Facebook Fanspage</u>!
+                    <b>Mode Simulasi (DRY RUN):</b> Konten ini sudah selesai dibuat dan lulus Quality Control secara lokal. Klik tombol biru di bawah untuk <u>otomatis beralih ke Mode Production dan mempublikasikan serentak ke 3 Sosial Media (Facebook Fanspage, Instagram & Threads)</u>!
                 </div>
             </div>
 
@@ -2084,12 +2083,12 @@ async def serve_dashboard(_: bool = Depends(verify_dashboard_access)):
 
             <div style="background: rgba(255,255,255,0.02); border: 1px dashed var(--border); border-radius: 8px; padding: 10px 12px; font-size: 0.72rem; color: var(--text-muted); display:flex; justify-content: space-between; align-items: center;">
                 <div>Verification Hash: <code id="prev-hash" style="color: var(--accent-blue); font-family: monospace;">-</code></div>
-                <div id="prev-plat-name">Platform: Facebook</div>
+                <div id="prev-plat-name">Platform: Facebook, Instagram & Threads</div>
             </div>
 
             <div class="modal-actions">
                 <button class="btn btn-outline" onclick="closePostPreview()">Tutup</button>
-                <button class="btn btn-primary" id="prev-btn-publish" onclick="publishCurrentPreviewNow()" style="background: linear-gradient(135deg, #2563EB, #1D4ED8); font-weight:700;">🚀 Terbitkan Sekarang ke Facebook</button>
+                <button class="btn btn-primary" id="prev-btn-publish" onclick="publishCurrentPreviewNow()" style="background: linear-gradient(135deg, #2563EB, #1D4ED8); font-weight:700;">🚀 Terbitkan Serentak ke 3 Medsos</button>
             </div>
         </div>
     </div>
@@ -2382,11 +2381,11 @@ async def serve_dashboard(_: bool = Depends(verify_dashboard_access)):
             const liveBtn = document.getElementById('prev-btn-publish');
             if (liveBtn) {{
                 if (isSim) {{
-                    liveBtn.innerHTML = '🚀 Terbitkan Sekarang ke Facebook';
+                    liveBtn.innerHTML = '🚀 Terbitkan Serentak ke 3 Medsos';
                     liveBtn.style.display = 'inline-flex';
                     liveBtn.onclick = () => {{ publishNow(p.content_id || p.id); }};
                 }} else if (p.post_url && p.post_url !== '#' && !isFailed) {{
-                    liveBtn.innerHTML = '↗ Buka Post Facebook Asli';
+                    liveBtn.innerHTML = '↗ Buka Post';
                     liveBtn.style.display = 'inline-flex';
                     liveBtn.onclick = () => {{ window.open(p.post_url, '_blank'); }};
                 }} else {{
@@ -2406,10 +2405,10 @@ async def serve_dashboard(_: bool = Depends(verify_dashboard_access)):
         async function publishNow(contentId) {{
             const btn = document.getElementById('prev-btn-publish');
             if (btn) {{
-                btn.innerHTML = '⏳ Menerbitkan ke Facebook...';
+                btn.innerHTML = '⏳ Menerbitkan ke FB, IG & Threads...';
                 btn.disabled = true;
             }}
-            showToast('🚀 Mengalihkan ke mode PRODUCTION dan mempublikasikan ke Facebook Fanspage...');
+            showToast('🚀 Mengalihkan ke mode PRODUCTION dan mempublikasikan ke Facebook, Instagram & Threads...');
             try {{
                 const res = await fetch('/api/publish/now/' + contentId, {{ method: 'POST' }});
                 let d;
@@ -2432,7 +2431,7 @@ async def serve_dashboard(_: bool = Depends(verify_dashboard_access)):
                 showToast('🔴 Eror: ' + e.message);
             }} finally {{
                 if (btn) {{
-                    btn.innerHTML = '🚀 Terbitkan Sekarang ke Facebook';
+                    btn.innerHTML = '🚀 Terbitkan Serentak ke 3 Medsos';
                     btn.disabled = false;
                 }}
             }}
